@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useReducer } from 'react'
 import { uid, colorForName, decodePayload, nameFromEmail } from './lib/utils'
+import { ADMIN_EMAIL, isAdminEmail } from './config'
 
 const STORAGE_KEY = 'novi.task-manager.v1'
 
@@ -31,17 +32,23 @@ export const ROLES = {
   viewer: { label: 'Viewer', hint: 'Can read the board only' },
 }
 
+/** The workspace admin outranks whatever role a board or folder records. */
+export const isAdmin = (user) => isAdminEmail(user?.email)
+
 export const roleOf = (board, userId) => {
   const member = board?.members.find((m) => m.id === userId)
   if (!member) return null
+  if (isAdminEmail(member.email)) return 'owner'
   if (member.role) return member.role
   // Boards saved before roles existed: the creator owns it, everyone else edits.
   if (board.ownerId) return board.ownerId === userId ? 'owner' : 'editor'
   return board.members[0]?.id === userId ? 'owner' : 'editor'
 }
 
-export const canEdit = (board, user) => ['owner', 'editor'].includes(roleOf(board, user?.id))
-export const canManage = (board, user) => roleOf(board, user?.id) === 'owner'
+export const canEdit = (board, user) =>
+  isAdmin(user) || ['owner', 'editor'].includes(roleOf(board, user?.id))
+
+export const canManage = (board, user) => isAdmin(user) || roleOf(board, user?.id) === 'owner'
 
 /**
  * Folder membership is the source of truth for who works on a client or
@@ -51,12 +58,13 @@ export const folderMembers = (folder) => folder?.members ?? []
 
 export const folderRoleOf = (folder, userId) => {
   const member = folderMembers(folder).find((m) => m.id === userId)
-  if (member) return member.role ?? 'editor'
+  if (member) return isAdminEmail(member.email) ? 'owner' : member.role ?? 'editor'
   // Folders saved before membership existed belong to whoever opens them.
   return folderMembers(folder).length === 0 ? 'owner' : null
 }
 
-export const canManageFolder = (folder, user) => folderRoleOf(folder, user?.id) === 'owner'
+export const canManageFolder = (folder, user) =>
+  isAdmin(user) || folderRoleOf(folder, user?.id) === 'owner'
 
 export const DEFAULT_LISTS = () => [
   { id: uid('list'), title: 'To Do' },
@@ -76,7 +84,13 @@ function seed() {
   const folderId = uid('fold')
   const boardId = uid('board')
   const lists = DEFAULT_LISTS()
-  const owner = { id: uid('user'), name: 'Hussein', color: colorForName('Hussein'), role: 'owner' }
+  const owner = {
+    id: uid('user'),
+    name: 'Hussein',
+    email: ADMIN_EMAIL,
+    color: colorForName('Hussein'),
+    role: 'owner',
+  }
   const ali = {
     id: uid('user'),
     name: 'Ali',
@@ -177,21 +191,48 @@ function reducer(state, action) {
   switch (action.type) {
     case 'login': {
       const name = action.name.trim()
-      const existing = state.boards
-        .flatMap((b) => b.members)
-        .find((m) => m.name.toLowerCase() === name.toLowerCase())
-      const user = existing ?? { id: uid('user'), name, color: colorForName(name), role: 'editor' }
-      const boards = state.boards.map((b) => {
-        if (b.members.some((m) => m.id === user.id)) return b
-        // A board with nobody on it is adopted by whoever opens it first.
-        const role = b.members.length === 0 ? 'owner' : 'editor'
-        return {
-          ...b,
-          ownerId: b.ownerId ?? (role === 'owner' ? user.id : b.ownerId),
-          members: [...b.members, { ...user, role }],
+      const email = action.email?.trim() ?? ''
+      const everyone = [
+        ...state.folders.flatMap((f) => folderMembers(f)),
+        ...state.boards.flatMap((b) => b.members),
+      ]
+      const existing =
+        (email && everyone.find((m) => m.email?.toLowerCase() === email.toLowerCase())) ||
+        everyone.find((m) => m.name.toLowerCase() === name.toLowerCase())
+
+      const user = {
+        ...(existing ?? { id: uid('user'), color: colorForName(email || name), role: 'editor' }),
+        name: name || existing?.name || nameFromEmail(email),
+        email: email || existing?.email,
+      }
+      const admin = isAdminEmail(user.email)
+
+      // The admin owns everything; anyone else joins what they are not on yet.
+      const seat = (members) => {
+        const current = members.find((m) => m.id === user.id)
+        if (current) {
+          return members.map((m) =>
+            m.id === user.id ? { ...m, ...user, role: admin ? 'owner' : (m.role ?? 'editor') } : m,
+          )
         }
-      })
-      return { ...state, user, boards }
+        const role = admin || members.length === 0 ? 'owner' : 'editor'
+        return [...members, { ...user, role }]
+      }
+
+      return {
+        ...state,
+        user,
+        folders: state.folders.map((f) => ({
+          ...f,
+          ownerId: admin ? user.id : f.ownerId,
+          members: seat(folderMembers(f)),
+        })),
+        boards: state.boards.map((b) => ({
+          ...b,
+          ownerId: admin ? user.id : b.ownerId,
+          members: seat(b.members),
+        })),
+      }
     }
 
     case 'logout':

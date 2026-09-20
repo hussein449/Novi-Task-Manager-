@@ -7,6 +7,7 @@ import BoardsView from './components/BoardsView'
 import Planner from './components/Planner'
 import Inbox from './components/Inbox'
 import Overview from './components/Overview'
+import People from './components/People'
 import CardModal from './components/CardModal'
 import InviteModal from './components/InviteModal'
 import FolderMembersModal from './components/FolderMembersModal'
@@ -98,6 +99,8 @@ export default function App() {
           )}
           {view === 'planner' && <Planner onOpenCard={openCard} query={query} />}
           {view === 'inbox' && <Inbox onOpenCard={openCard} reminders={reminders} />}
+          {view === 'people' && <People onManageFolder={setManageFolderId} />}
+
           {view === 'overview' && (
             <Overview
               onOpenBoard={openBoard}

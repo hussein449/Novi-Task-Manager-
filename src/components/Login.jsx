@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { Icon, inputClass, Button } from './ui'
 import { useStore } from '../store'
-import { decodePayload } from '../lib/utils'
+import { decodePayload, isEmail, nameFromEmail } from '../lib/utils'
+import { isAdminEmail } from '../config'
 
 export default function Login() {
   const { dispatch } = useStore()
   const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [showJoin, setShowJoin] = useState(false)
   const [error, setError] = useState('')
@@ -13,7 +15,12 @@ export default function Login() {
   const submit = (e) => {
     e.preventDefault()
     const value = name.trim()
-    if (!value) return
+    const mail = email.trim()
+    if (!value && !mail) return
+    if (mail && !isEmail(mail)) {
+      setError('That email address does not look right.')
+      return
+    }
 
     if (code.trim()) {
       const payload = decodePayload(code.trim().split('join=').pop())
@@ -23,7 +30,7 @@ export default function Login() {
       }
       dispatch({ type: 'importBoard', payload })
     }
-    dispatch({ type: 'login', name: value })
+    dispatch({ type: 'login', name: value || nameFromEmail(mail), email: mail })
   }
 
   return (
@@ -39,10 +46,11 @@ export default function Login() {
 
           <h1 className="text-2xl font-semibold text-ink tracking-tight">Sign in</h1>
           <p className="text-sm text-ink-2 mt-1.5 mb-6">
-            Enter your name to open your boards. No password needed.
+            Enter your name to open your boards, and your email if you were invited by one.
+            No password needed.
           </p>
 
-          <form onSubmit={submit} className="space-y-4">
+          <form noValidate onSubmit={submit} className="space-y-4">
             <label className="block">
               <span className="block text-sm font-medium text-ink-2 mb-1.5">Your name</span>
               <input
@@ -52,6 +60,28 @@ export default function Login() {
                 placeholder="e.g. Hussein"
                 className={inputClass}
               />
+            </label>
+
+            <label className="block">
+              <span className="flex items-center gap-2 text-sm font-medium text-ink-2 mb-1.5">
+                Email
+                <span className="text-xs font-normal text-ink-3">optional</span>
+              </span>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                  setError('')
+                }}
+                placeholder="you@company.com"
+                className={inputClass}
+              />
+              <span className="block mt-1.5 text-xs text-ink-3">
+                {isAdminEmail(email)
+                  ? 'This is the workspace admin — you will own every folder and board.'
+                  : 'Signing in with the email you were invited with keeps your role.'}
+              </span>
             </label>
 
             {showJoin && (
@@ -66,11 +96,16 @@ export default function Login() {
                   placeholder="Paste the invite you were sent"
                   className={inputClass}
                 />
-                {error && <span className="block mt-1.5 text-xs text-danger">{error}</span>}
               </label>
             )}
 
-            <Button type="submit" disabled={!name.trim()} className="w-full py-2.5">
+            {error && <p className="text-xs text-danger">{error}</p>}
+
+            <Button
+              type="submit"
+              disabled={!name.trim() && !email.trim()}
+              className="w-full py-2.5"
+            >
               Continue
             </Button>
 

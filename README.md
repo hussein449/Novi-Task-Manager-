@@ -23,6 +23,13 @@ the browser, so there is no backend to run.
   assignee in aligned columns, and a group header you can collapse. Nothing
   scrolls sideways at any width. Statuses can be renamed, added or deleted, and
   moving a task into the last one marks it complete.
+- **People section** — a view of its own: every folder with its members, their
+  email and their role, plus each project inside the folder with its own member
+  list. Add someone to the folder (they join every project in it) or to a single
+  project, by name, by email, or both.
+- **Workspace admin** — one address, set in `src/config.js`, owns every folder and
+  project automatically. Sign in with it and you can add people, set roles and edit
+  any task without being invited first.
 - **Roles** — every person on a folder or board is an owner, an editor or a viewer. Editors
   add and change tasks; viewers can read the board but get no add buttons, no drag
   handles and a read-only task dialog; only the owner invites people, sets their
@@ -83,6 +90,7 @@ src/
     Overview.jsx         cross-board stats
     InviteModal.jsx          invite to one board, by name or email, + invite link
     FolderMembersModal.jsx   a folder's people: add, set roles, remove, invite link
+    People.jsx               people per folder and per project, with roles
     Chrome.jsx           top bar, sidebar, mobile menu and nav, toasts
     ui.jsx               icons, avatars, modal, buttons
 ```
@@ -109,6 +117,24 @@ folder with its boards and tasks, or a single board with its tasks. Opening the
 link imports it into the recipient's workspace.
 Because storage is local, this copies the board rather than syncing it live — a
 backend would be the next step if you want real-time collaboration.
+
+### The admin, and what roles actually protect
+
+`src/config.js` holds one constant:
+
+```js
+export const ADMIN_EMAIL = 'you@example.com'
+```
+
+Signing in with that address makes you the owner of every folder and board: role
+checks short-circuit for the admin, and the sign-in seats you on everything as
+owner. Change the constant to move the admin to another address.
+
+Roles decide what the interface offers — buttons, drag handles, editable fields.
+They are not a security boundary: everything lives in the visitor's own browser,
+so anyone who opens the devtools can change their own copy. Enforcing access for
+real needs a backend that checks identity on every request, at which point these
+same roles become the rules it enforces.
 
 ## Notes and limits
 

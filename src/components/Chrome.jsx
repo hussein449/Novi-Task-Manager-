@@ -8,6 +8,7 @@ const VIEW_TITLES = {
   inbox: 'Inbox',
   boards: 'Projects',
   overview: 'Overview',
+  people: 'People',
 }
 
 /* ---------------- top bar ---------------- */
@@ -236,19 +237,20 @@ const NAV = [
   { key: 'inbox', label: 'Inbox', icon: 'inbox' },
   { key: 'overview', label: 'Overview', icon: 'overview' },
   { key: 'boards', label: 'Projects', icon: 'folder' },
+  { key: 'people', label: 'People', icon: 'users' },
 ]
 
 export function BottomNav({ view, onChange, unread }) {
   return (
     <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-surface border-t border-line pb-[env(safe-area-inset-bottom)]">
-      <div className="grid grid-cols-5">
+      <div className="grid grid-cols-6">
         {NAV.map((item) => {
           const active = view === item.key
           return (
             <button
               key={item.key}
               onClick={() => onChange(item.key)}
-              className={`relative flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition ${
+              className={`relative flex flex-col items-center gap-1 py-2.5 text-[10px] sm:text-[11px] font-medium transition ${
                 active ? 'text-primary' : 'text-ink-3 hover:text-ink-2'
               }`}
               aria-current={active ? 'page' : undefined}
@@ -324,6 +326,7 @@ function SidebarContent({ activeBoardId, onOpenBoard, view, onChangeView, onClos
     { key: 'planner', label: 'Planner', icon: 'planner' },
     { key: 'inbox', label: 'Inbox', icon: 'inbox' },
     { key: 'boards', label: 'All projects', icon: 'folder' },
+    { key: 'people', label: 'People', icon: 'users' },
   ]
 
   return (
