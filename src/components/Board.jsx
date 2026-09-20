@@ -10,10 +10,30 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import List from './List'
+import StatusSection from './StatusSection'
 import { CardFace } from './TaskCard'
 import { Icon, EmptyState, Button } from './ui'
 import { useStore, cardsOfBoard } from '../store'
+
+/**
+ * Tints for the status bands: the first status stays neutral, the last one —
+ * where a card counts as done — is green, and anything in between cycles.
+ */
+const TONES = {
+  first: { band: 'lane-grey', dot: 'bg-slate-500' },
+  last: { band: 'lane-green', dot: 'bg-emerald-600' },
+  middle: [
+    { band: 'lane-blue', dot: 'bg-blue-600' },
+    { band: 'lane-amber', dot: 'bg-amber-600' },
+    { band: 'lane-violet', dot: 'bg-violet-600' },
+  ],
+}
+
+const toneFor = (index, total) => {
+  if (total > 1 && index === total - 1) return TONES.last
+  if (index === 0) return TONES.first
+  return TONES.middle[(index - 1) % TONES.middle.length]
+}
 
 export default function Board({ board, onOpenCard, query }) {
   const { state, dispatch } = useStore()
@@ -84,12 +104,12 @@ export default function Board({ board, onOpenCard, query }) {
     return (
       <EmptyState
         icon="board"
-        title="This board has no lists yet"
-        hint="Add a list to start tracking work."
+        title="This board has no statuses yet"
+        hint="Add one to start tracking work."
         action={
           <Button onClick={() => dispatch({ type: 'addList', boardId: board.id, title: 'To Do' })}>
             <Icon name="plus" className="w-4 h-4" />
-            Add a list
+            Add a status
           </Button>
         }
       />
@@ -104,55 +124,58 @@ export default function Board({ board, onOpenCard, query }) {
       onDragCancel={() => setActiveId(null)}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-3 items-start overflow-x-auto thin-scroll px-4 sm:px-6 pb-4 snap-x snap-mandatory sm:snap-none">
-        {board.lists.map((list) => (
-          <div key={list.id} className="snap-center">
-            <List board={board} list={list} cards={byList[list.id] ?? []} onOpenCard={onOpenCard} />
-          </div>
+      <div className="px-4 sm:px-6 max-w-6xl mx-auto w-full space-y-3">
+        {board.lists.map((list, index) => (
+          <StatusSection
+            key={list.id}
+            board={board}
+            list={list}
+            cards={byList[list.id] ?? []}
+            tone={toneFor(index, board.lists.length)}
+            onOpenCard={onOpenCard}
+          />
         ))}
 
-        <div className="shrink-0 w-[82vw] xs:w-[300px] sm:w-[312px] snap-center">
-          {addingList ? (
-            <form onSubmit={submitList} className="rounded-xl border border-line bg-muted p-3">
-              <input
-                autoFocus
-                value={listTitle}
-                onChange={(e) => setListTitle(e.target.value)}
-                onKeyDown={(e) => e.key === 'Escape' && setAddingList(false)}
-                placeholder="List name"
-                className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-              />
-              <div className="flex gap-2 mt-2">
-                <button
-                  type="submit"
-                  className="rounded-lg bg-primary hover:bg-primary-dark text-white px-3 py-1.5 text-sm font-medium transition"
-                >
-                  Add list
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAddingList(false)}
-                  className="rounded-lg px-2.5 py-1.5 text-sm text-ink-2 hover:bg-line/70 transition"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          ) : (
-            <button
-              onClick={() => setAddingList(true)}
-              className="w-full flex items-center gap-2 rounded-xl border border-dashed border-line-strong bg-surface/60 px-4 py-3 text-sm font-medium text-ink-2 hover:bg-surface hover:text-ink transition"
-            >
-              <Icon name="plus" className="w-4 h-4" />
-              Add another list
-            </button>
-          )}
-        </div>
+        {addingList ? (
+          <form onSubmit={submitList} className="rounded-xl border border-line bg-surface p-3">
+            <input
+              autoFocus
+              value={listTitle}
+              onChange={(e) => setListTitle(e.target.value)}
+              onKeyDown={(e) => e.key === 'Escape' && setAddingList(false)}
+              placeholder="Status name, for example Review"
+              className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+            <div className="flex gap-2 mt-2">
+              <button
+                type="submit"
+                className="rounded-lg bg-primary hover:bg-primary-dark text-white px-3 py-1.5 text-sm font-medium transition"
+              >
+                Add status
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddingList(false)}
+                className="rounded-lg px-2.5 py-1.5 text-sm text-ink-2 hover:bg-muted transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : (
+          <button
+            onClick={() => setAddingList(true)}
+            className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-line-strong px-4 py-3 text-sm font-medium text-ink-2 hover:border-primary hover:text-primary hover:bg-surface transition"
+          >
+            <Icon name="plus" className="w-4 h-4" />
+            Add another status
+          </button>
+        )}
       </div>
 
       <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}>
         {activeCard ? (
-          <div className="w-[82vw] xs:w-[292px] cursor-grabbing">
+          <div className="w-[280px] cursor-grabbing">
             <CardFace
               card={activeCard}
               member={board.members.find((m) => m.id === activeCard.assigneeId) ?? null}

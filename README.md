@@ -11,8 +11,11 @@ the browser, so there is no backend to run.
   board by name, or send an invite link that carries the whole board (lists, cards,
   members) to another browser.
 - **Folders → boards → cards** — group boards in folders, one per client or project.
-- **Three statuses out of the box** — To Do / Doing / Done. Lists can be renamed,
-  added or deleted, and dropping a card in the last list marks it complete.
+- **Three statuses out of the box** — To Do / Doing / Done. Each status is a
+  full-width band down the page with its own tinted background, so the board never
+  scrolls sideways: cards sit in a grid that reflows from four across on a wide
+  screen to one on a phone. Statuses can be renamed, added, collapsed or deleted,
+  and dropping a card in the last one marks it complete.
 - **Drag & drop** — powered by dnd-kit, with pointer, touch and keyboard sensors, so
   it works on a phone as well as a desktop.
 - **Deadlines, assignees, priorities** — every card carries a due date, an assigned
@@ -53,8 +56,8 @@ src/
   lib/utils.js           ids, colors, date formatting, invite encoding
   lib/useReminders.js    the deadline watcher behind toasts and notifications
   components/
-    Board.jsx            DndContext, lists, drag overlay
-    List.jsx             a single status column
+    Board.jsx            DndContext, status bands, drag overlay
+    StatusSection.jsx    one status band: header, card grid, inline add
     TaskCard.jsx         sortable card + its visual face
     CardModal.jsx        deadline, reminder, assignee, status, priority
     BoardsView.jsx       folders and boards, create/delete

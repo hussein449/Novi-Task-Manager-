@@ -52,6 +52,13 @@ body {
   outline-offset: 2px;
 }
 
+/* Status bands — the board background is partitioned one band per status */
+.lane-grey { background: #edf0f4; }
+.lane-blue { background: #e9f1ff; }
+.lane-amber { background: #fdf4e6; }
+.lane-violet { background: #f3eefc; }
+.lane-green { background: #e9f6ef; }
+
 /* Board accent colors — used as a thin stripe and a dot, never as a full background */
 .accent-slate { background: #64748b; }
 .accent-blue { background: #2563eb; }
