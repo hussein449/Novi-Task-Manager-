@@ -338,17 +338,19 @@ $$;
 
 /* ---------------- who may call what ---------------- */
 
-revoke execute on function public.current_email() from anon;
-revoke execute on function public.is_admin() from anon;
-revoke execute on function public.folder_role(uuid) from anon;
-revoke execute on function public.board_role(uuid) from anon;
-revoke execute on function public.can_edit_board(uuid) from anon;
-revoke execute on function public.reorder_cards(uuid, uuid[]) from anon;
-revoke execute on function public.reorder_lists(uuid, uuid[]) from anon;
-revoke execute on function public.accept_my_invitations() from anon;
+-- Postgres grants EXECUTE to PUBLIC on every new function, and anon inherits
+-- that, so revoking from anon alone would change nothing.
+revoke execute on function public.current_email() from public, anon;
+revoke execute on function public.is_admin() from public, anon;
+revoke execute on function public.folder_role(uuid) from public, anon;
+revoke execute on function public.board_role(uuid) from public, anon;
+revoke execute on function public.can_edit_board(uuid) from public, anon;
+revoke execute on function public.reorder_cards(uuid, uuid[]) from public, anon;
+revoke execute on function public.reorder_lists(uuid, uuid[]) from public, anon;
+revoke execute on function public.accept_my_invitations() from public, anon;
 
 -- never reachable over the API: it only ever runs as a trigger
-revoke execute on function public.handle_new_user() from anon, authenticated;
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
 
 -- The rest stay callable by signed-in users: RLS policies evaluate them, and
 -- each one only ever reports on the caller themselves.
