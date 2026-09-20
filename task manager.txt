@@ -1,0 +1,10 @@
+task manager :
+
+
+what we should have is a login by name and invite 
+
+a board and cards like the ones of Trello  each can have a deadline , and an assigned person , to finish 3 statuses and an overallview
+
+and different boards to be created depending on the client or project .
+
+being able to create different folders for different projects 
