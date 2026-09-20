@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Icon, Avatar, AvatarStack, Button, inputClass, EmptyState } from './ui'
+import { Icon, Avatar, AvatarStack, Button, EmptyState } from './ui'
+import InvitePanel from './InvitePanel'
 import {
   useStore,
   ROLES,
@@ -11,97 +12,13 @@ import {
   roleOf,
   isAdmin,
 } from '../store'
-import { isEmail, nameFromEmail } from '../lib/utils'
-
-/* ---------------- add-a-person form ---------------- */
-
-function AddPersonForm({ scope, existing, onAdd, onCancel }) {
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [role, setRole] = useState('editor')
-  const [error, setError] = useState('')
-
-  const submit = (e) => {
-    e.preventDefault()
-    const cleanName = name.trim()
-    const cleanEmail = email.trim()
-
-    if (!cleanName && !cleanEmail) {
-      setError('Add a name or an email address.')
-      return
-    }
-    if (cleanEmail && !isEmail(cleanEmail)) {
-      setError('That email address does not look right.')
-      return
-    }
-
-    const finalName = cleanName || nameFromEmail(cleanEmail)
-    const clash = existing.some(
-      (m) =>
-        m.name.toLowerCase() === finalName.toLowerCase() ||
-        (cleanEmail && m.email?.toLowerCase() === cleanEmail.toLowerCase()),
-    )
-    if (clash) {
-      setError(`Already in this ${scope}.`)
-      return
-    }
-
-    onAdd({ name: finalName, email: cleanEmail, role })
-    setName('')
-    setEmail('')
-    setError('')
-  }
-
-  return (
-    <form noValidate onSubmit={submit} className="rounded-lg border border-line bg-muted/50 p-2.5">
-      <div className="flex flex-wrap gap-2">
-        <input
-          autoFocus
-          value={name}
-          onChange={(e) => {
-            setName(e.target.value)
-            setError('')
-          }}
-          placeholder="Name"
-          className={`${inputClass} flex-1 min-w-28 py-1.5`}
-        />
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => {
-            setEmail(e.target.value)
-            setError('')
-          }}
-          placeholder="name@company.com"
-          className={`${inputClass} flex-[2] min-w-44 py-1.5`}
-        />
-        <select
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-          className={`${inputClass} w-28 py-1.5`}
-          aria-label="Role"
-        >
-          <option value="editor">Editor</option>
-          <option value="viewer">Viewer</option>
-        </select>
-        <Button type="submit" size="sm">
-          Add
-        </Button>
-        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
-          Cancel
-        </Button>
-      </div>
-      {error && <p className="mt-1.5 text-xs text-danger">{error}</p>}
-    </form>
-  )
-}
 
 /* ---------------- one person's row ---------------- */
 
 function PersonRow({ member, role, counts, mayManage, onRole, onRemove, indent = false }) {
   const { state } = useStore()
   const isMe = state.user?.id === member.id
-  const locked = role === 'owner' || !mayManage
+  const locked = role === 'owner' || !mayManage || member.inherited
 
   return (
     <div
@@ -114,6 +31,16 @@ function PersonRow({ member, role, counts, mayManage, onRole, onRemove, indent =
         <p className="text-sm text-ink truncate">
           {member.name}
           {isMe && <span className="text-xs text-ink-3"> · you</span>}
+          {member.pending && (
+            <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-ink-3">
+              invited
+            </span>
+          )}
+          {member.inherited && (
+            <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-ink-3">
+              from folder
+            </span>
+          )}
         </p>
         <p className="text-xs text-ink-3 truncate">
           {member.email ?? 'No email'}
@@ -138,7 +65,7 @@ function PersonRow({ member, role, counts, mayManage, onRole, onRemove, indent =
           </select>
         )}
 
-        {mayManage && role !== 'owner' && (
+        {mayManage && role !== 'owner' && !member.inherited && (
           <button
             onClick={onRemove}
             className="p-1.5 rounded-md text-ink-3 hover:text-danger hover:bg-danger-soft transition"
@@ -199,12 +126,14 @@ function BoardPeople({ board, mayManage }) {
       {open && (
         <div className="border-t border-line p-2 space-y-1">
           {adding && (
-            <AddPersonForm
+            <InvitePanel
+              compact
               scope="board"
+              targetId={board.id}
+              label={board.name}
               existing={board.members}
-              onCancel={() => setAdding(false)}
-              onAdd={({ name, email, role }) =>
-                dispatch({ type: 'addMember', boardId: board.id, name, email, role })
+              onAdded={({ email, name, role }) =>
+                dispatch({ type: 'addMember', boardId: board.id, email, name, role })
               }
             />
           )}
@@ -332,12 +261,14 @@ export default function People({ onManageFolder }) {
 
               <div className="p-3 space-y-1">
                 {addingFolderId === folder.id && (
-                  <AddPersonForm
+                  <InvitePanel
+                    compact
                     scope="folder"
+                    targetId={folder.id}
+                    label={folder.name}
                     existing={members}
-                    onCancel={() => setAddingFolderId(null)}
-                    onAdd={({ name, email, role }) =>
-                      dispatch({ type: 'addFolderMember', folderId: folder.id, name, email, role })
+                    onAdded={({ email, name, role }) =>
+                      dispatch({ type: 'addFolderMember', folderId: folder.id, email, name, role })
                     }
                   />
                 )}

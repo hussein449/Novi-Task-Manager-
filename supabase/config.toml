@@ -1,0 +1,4 @@
+project_id = "novi-task-manager"
+
+[functions.invite]
+verify_jwt = true

@@ -14,8 +14,39 @@ import FolderMembersModal from './components/FolderMembersModal'
 import { TopBar, BottomNav, Toasts, Sidebar, MobileMenu } from './components/Chrome'
 import { EmptyState, Button, Icon } from './components/ui'
 
+/** Shown when the site is deployed without its Supabase settings. */
+function NotConfigured() {
+  return (
+    <div className="min-h-dvh grid place-items-center p-6">
+      <div className="max-w-md rounded-xl border border-line bg-surface p-6 shadow-xs">
+        <h1 className="text-lg font-semibold text-ink">Almost there</h1>
+        <p className="text-sm text-ink-2 mt-2">
+          This copy of Novi has no database to talk to. Set these three variables and redeploy:
+        </p>
+        <pre className="mt-3 rounded-lg bg-muted p-3 text-xs text-ink-2 overflow-x-auto">
+{`VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+VITE_ADMIN_EMAIL`}
+        </pre>
+        <p className="text-sm text-ink-3 mt-3">
+          Locally they go in <code className="text-ink-2">.env.local</code>; on Netlify, in Site
+          configuration → Environment variables.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function Loading() {
+  return (
+    <div className="min-h-dvh grid place-items-center">
+      <p className="text-sm text-ink-3">Loading your workspace…</p>
+    </div>
+  )
+}
+
 export default function App() {
-  const { state, dispatch } = useStore()
+  const { state, dispatch, refresh, dismissError } = useStore()
   const [view, setView] = useState('board')
   const [openCardId, setOpenCardId] = useState(null)
   const [inviting, setInviting] = useState(false)
@@ -42,7 +73,9 @@ export default function App() {
 
   const openCard = (id) => setOpenCardId(id)
 
-  if (!state.user) return <Login />
+  if (state.status === 'unconfigured') return <NotConfigured />
+  if (!state.user) return state.status === 'loading' ? <Loading /> : <Login />
+  if (state.status === 'loading') return <Loading />
 
   const sidebarProps = {
     activeBoardId: board?.id,
@@ -70,6 +103,20 @@ export default function App() {
           onToggleCalendar={() => setCalendarOpen((v) => !v)}
         />
 
+        {state.error && (
+          <div className="mx-4 sm:mx-6 mt-3 flex items-start gap-3 rounded-lg border border-red-200 bg-danger-soft px-3 py-2.5">
+            <Icon name="bell" className="w-4 h-4 mt-0.5 text-danger shrink-0" />
+            <p className="flex-1 text-sm text-ink-2">{state.error}</p>
+            <button
+              onClick={dismissError}
+              className="p-1 rounded-md text-ink-3 hover:text-ink hover:bg-white/60 transition"
+              aria-label="Dismiss"
+            >
+              <Icon name="x" className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         <main className="flex-1 pt-5 pb-24 lg:pb-8">
           {view === 'board' &&
             (board ? (
@@ -83,8 +130,12 @@ export default function App() {
             ) : (
               <EmptyState
                 icon="board"
-                title="No board open"
-                hint="Pick a board from your projects, or create a new one."
+                title="No project open"
+                hint={
+                  state.folders.length === 0
+                    ? 'Create a folder for your first client or project, then add a board to it.'
+                    : 'Pick a project from your folders, or create a new one.'
+                }
                 action={
                   <Button onClick={() => setView('boards')}>
                     <Icon name="folder" className="w-4 h-4" />
@@ -100,7 +151,6 @@ export default function App() {
           {view === 'planner' && <Planner onOpenCard={openCard} query={query} />}
           {view === 'inbox' && <Inbox onOpenCard={openCard} reminders={reminders} />}
           {view === 'people' && <People onManageFolder={setManageFolderId} />}
-
           {view === 'overview' && (
             <Overview
               onOpenBoard={openBoard}
@@ -121,7 +171,10 @@ export default function App() {
       {manageFolderId && state.folders.some((f) => f.id === manageFolderId) && (
         <FolderMembersModal
           folder={state.folders.find((f) => f.id === manageFolderId)}
-          onClose={() => setManageFolderId(null)}
+          onClose={() => {
+            setManageFolderId(null)
+            refresh()
+          }}
         />
       )}
     </div>

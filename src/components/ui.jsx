@@ -181,20 +181,3 @@ export const SectionTitle = ({ children, count, action }) => (
     {action && <div className="ml-auto">{action}</div>}
   </div>
 )
-
-export const ClickableRow = ({ onClick, children, className = '' }) => (
-  <div
-    role="button"
-    tabIndex={0}
-    onClick={onClick}
-    onKeyDown={(e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault()
-        onClick()
-      }
-    }}
-    className={`cursor-pointer rounded-lg ${className}`}
-  >
-    {children}
-  </div>
-)

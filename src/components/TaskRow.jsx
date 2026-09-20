@@ -22,6 +22,7 @@ export function RowFace({
   dragging = false,
   meta,
   readOnly = false,
+  noDrag = false,
 }) {
   const state = dueState(card.dueDate, card.done)
   const priority = PRIORITIES[card.priority] ?? PRIORITIES.medium
@@ -32,7 +33,7 @@ export function RowFace({
         dragging ? 'rounded-lg border border-line-strong bg-surface shadow-lg' : 'hover:bg-muted/70'
       }`}
     >
-      {readOnly ? (
+      {readOnly || noDrag ? (
         <span className="shrink-0 w-6" />
       ) : (
         <button

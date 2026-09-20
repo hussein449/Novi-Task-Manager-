@@ -1,15 +1,20 @@
 /**
- * The workspace admin.
- *
- * Whoever signs in with this address is treated as the owner of every folder
- * and every board: they can add and remove people, change roles, and edit any
- * task, without being invited first.
- *
- * Note this is a front-end rule on data kept in the browser — it decides what
- * the interface offers, not what a determined person could reach. Real access
- * control needs a backend that checks identity on every request.
+ * Configuration comes from the environment, so nothing personal is committed.
+ * Copy .env.example to .env.local for development, and set the same three
+ * variables in Netlify for the deployed site.
  */
-export const ADMIN_EMAIL = 'husseinnaserddine21@gmail.com'
+
+export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? ''
+export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? ''
+
+/**
+ * The workspace admin: whoever signs in with this address owns every folder and
+ * board. The database enforces the same thing through its `admins` table — this
+ * constant only decides what the interface offers.
+ */
+export const ADMIN_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL ?? '').trim().toLowerCase()
 
 export const isAdminEmail = (email) =>
-  Boolean(email) && email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase()
+  Boolean(email) && Boolean(ADMIN_EMAIL) && email.trim().toLowerCase() === ADMIN_EMAIL
+
+export const isConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY)

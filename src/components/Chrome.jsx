@@ -25,7 +25,7 @@ export function TopBar({
   calendarOpen,
   onToggleCalendar,
 }) {
-  const { state, dispatch } = useStore()
+  const { state, dispatch, signOut } = useStore()
   const [menu, setMenu] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState(board?.name ?? '')
@@ -173,7 +173,7 @@ export function TopBar({
               <div className="absolute right-0 top-11 z-40 w-60 rounded-xl border border-line bg-surface p-1.5 shadow-lg animate-pop">
                 <div className="px-3 py-2">
                   <p className="text-sm font-semibold text-ink truncate">{state.user?.name}</p>
-                  <p className="text-xs text-ink-3 mt-0.5">Signed in on this device</p>
+                  <p className="text-xs text-ink-3 mt-0.5 truncate">{state.user?.email}</p>
                 </div>
 
                 {onBoard && mayManage && (
@@ -198,7 +198,7 @@ export function TopBar({
 
                 <div className="border-t border-line pt-1 mt-1">
                   <button
-                    onClick={() => dispatch({ type: 'logout' })}
+                    onClick={signOut}
                     className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-ink-2 hover:bg-muted hover:text-ink transition"
                   >
                     <Icon name="logout" className="w-4 h-4" />

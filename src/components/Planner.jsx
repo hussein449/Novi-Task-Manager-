@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { CardFace } from './TaskCard'
-import { Icon, EmptyState, inputClass, ClickableRow } from './ui'
+import { RowFace } from './TaskRow'
+import { Icon, EmptyState, inputClass } from './ui'
 import { useStore } from '../store'
 import { BUCKETS, bucketFor } from '../lib/utils'
 
@@ -94,15 +94,16 @@ export default function Planner({ onOpenCard, query }) {
                   {items.map((card) => {
                     const board = state.boards.find((b) => b.id === card.boardId)
                     return (
-                      <ClickableRow key={card.id} onClick={() => onOpenCard(card.id)}>
-                        <CardFace
+                      <div key={card.id} className="rounded-lg border border-line bg-surface shadow-xs">
+                        <RowFace
                           card={card}
                           member={board?.members.find((m) => m.id === card.assigneeId) ?? null}
                           onToggleDone={(id) => dispatch({ type: 'toggleDone', id })}
-                          compact
+                          onOpen={onOpenCard}
                           meta={board?.name}
+                          noDrag
                         />
-                      </ClickableRow>
+                      </div>
                     )
                   })}
                 </div>

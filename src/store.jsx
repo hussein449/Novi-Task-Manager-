@@ -1,20 +1,14 @@
-import { createContext, useContext, useEffect, useMemo, useReducer } from 'react'
-import { uid, colorForName, decodePayload, nameFromEmail } from './lib/utils'
-import { ADMIN_EMAIL, isAdminEmail } from './config'
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef } from 'react'
+import { supabase, isConfigured } from './lib/supabase'
+import * as api from './lib/api'
+import { colorForName } from './lib/utils'
+import { isAdminEmail } from './config'
 
-const STORAGE_KEY = 'novi.task-manager.v1'
+/* ---------------- shared vocabulary ---------------- */
 
 export const ACCENTS = ['blue', 'teal', 'violet', 'amber', 'rose', 'slate']
 
-// Boards created before the redesign carry a scene name; map those to an accent.
-const LEGACY_ACCENTS = {
-  night: 'blue',
-  sunset: 'rose',
-  forest: 'teal',
-  violet: 'violet',
-  ember: 'amber',
-  slate: 'slate',
-}
+const LEGACY_ACCENTS = { night: 'blue', sunset: 'rose', forest: 'teal', ember: 'amber' }
 
 export const accentOf = (board) => {
   const value = board?.accent ?? board?.scene
@@ -22,55 +16,7 @@ export const accentOf = (board) => {
   return LEGACY_ACCENTS[value] ?? 'blue'
 }
 
-/**
- * Board roles. Owner manages the board and who is on it, editor does the work,
- * viewer can read it but cannot add or change anything.
- */
-export const ROLES = {
-  owner: { label: 'Owner', hint: 'Manages the board, its people and their roles' },
-  editor: { label: 'Editor', hint: 'Can add, edit and move tasks' },
-  viewer: { label: 'Viewer', hint: 'Can read the board only' },
-}
-
-/** The workspace admin outranks whatever role a board or folder records. */
-export const isAdmin = (user) => isAdminEmail(user?.email)
-
-export const roleOf = (board, userId) => {
-  const member = board?.members.find((m) => m.id === userId)
-  if (!member) return null
-  if (isAdminEmail(member.email)) return 'owner'
-  if (member.role) return member.role
-  // Boards saved before roles existed: the creator owns it, everyone else edits.
-  if (board.ownerId) return board.ownerId === userId ? 'owner' : 'editor'
-  return board.members[0]?.id === userId ? 'owner' : 'editor'
-}
-
-export const canEdit = (board, user) =>
-  isAdmin(user) || ['owner', 'editor'].includes(roleOf(board, user?.id))
-
-export const canManage = (board, user) => isAdmin(user) || roleOf(board, user?.id) === 'owner'
-
-/**
- * Folder membership is the source of truth for who works on a client or
- * project: adding someone to a folder puts them on every board inside it.
- */
-export const folderMembers = (folder) => folder?.members ?? []
-
-export const folderRoleOf = (folder, userId) => {
-  const member = folderMembers(folder).find((m) => m.id === userId)
-  if (member) return isAdminEmail(member.email) ? 'owner' : member.role ?? 'editor'
-  // Folders saved before membership existed belong to whoever opens them.
-  return folderMembers(folder).length === 0 ? 'owner' : null
-}
-
-export const canManageFolder = (folder, user) =>
-  isAdmin(user) || folderRoleOf(folder, user?.id) === 'owner'
-
-export const DEFAULT_LISTS = () => [
-  { id: uid('list'), title: 'To Do' },
-  { id: uid('list'), title: 'Doing' },
-  { id: uid('list'), title: 'Done' },
-]
+export const DEFAULT_LIST_TITLES = ['To Do', 'Doing', 'Done']
 
 export const PRIORITIES = {
   low: { label: 'Low', chip: 'bg-slate-50 text-slate-600 border-slate-200' },
@@ -78,176 +24,125 @@ export const PRIORITIES = {
   high: { label: 'High', chip: 'bg-danger-soft text-danger border-red-200' },
 }
 
-/* ---------------- seed ---------------- */
-
-function seed() {
-  const folderId = uid('fold')
-  const boardId = uid('board')
-  const lists = DEFAULT_LISTS()
-  const owner = {
-    id: uid('user'),
-    name: 'Hussein',
-    email: ADMIN_EMAIL,
-    color: colorForName('Hussein'),
-    role: 'owner',
-  }
-  const ali = {
-    id: uid('user'),
-    name: 'Ali',
-    email: 'ali@teka.co',
-    color: colorForName('Ali'),
-    role: 'editor',
-  }
-
-  const inTwoDays = new Date(Date.now() + 2 * 86400000)
-  inTwoDays.setHours(17, 0, 0, 0)
-  const tomorrow = new Date(Date.now() + 86400000)
-  tomorrow.setHours(10, 30, 0, 0)
-
-  return {
-    user: null,
-    folders: [
-      {
-        id: folderId,
-        name: 'Clients',
-        emoji: '\u{1F4BC}',
-        ownerId: owner.id,
-        members: [owner, ali],
-      },
-    ],
-    boards: [
-      {
-        id: boardId,
-        folderId,
-        name: 'Teka and Fontain tasks',
-        accent: 'blue',
-        ownerId: owner.id,
-        lists,
-        members: [owner, ali],
-        createdAt: Date.now(),
-      },
-    ],
-    cards: [
-      {
-        id: uid('card'),
-        boardId,
-        listId: lists[0].id,
-        title: 'Create 2 posts next week by ALI',
-        description: 'Draft the copy and visuals, then hand over for review.',
-        dueDate: inTwoDays.toISOString(),
-        remindBefore: 60,
-        assigneeId: ali.id,
-        priority: 'high',
-        done: false,
-        createdAt: Date.now(),
-      },
-      {
-        id: uid('card'),
-        boardId,
-        listId: lists[1].id,
-        title: 'Shoot the storefront photos',
-        description: '',
-        dueDate: tomorrow.toISOString(),
-        remindBefore: 60,
-        assigneeId: owner.id,
-        priority: 'medium',
-        done: false,
-        createdAt: Date.now(),
-      },
-      {
-        id: uid('card'),
-        boardId,
-        listId: lists[2].id,
-        title: 'Send the September invoice',
-        description: '',
-        dueDate: null,
-        remindBefore: 60,
-        assigneeId: owner.id,
-        priority: 'low',
-        done: true,
-        createdAt: Date.now(),
-      },
-    ],
-    activeBoardId: boardId,
-    notifications: [],
-  }
+export const ROLES = {
+  owner: { label: 'Owner', hint: 'Manages the board, its people and their roles' },
+  editor: { label: 'Editor', hint: 'Can add, edit and move tasks' },
+  viewer: { label: 'Viewer', hint: 'Can read the board only' },
 }
 
-function load() {
+/* ---------------- who may do what ---------------- */
+
+export const isAdmin = (user) => isAdminEmail(user?.email)
+
+export const roleOf = (board, userId) => {
+  const member = board?.members.find((m) => m.id === userId)
+  if (member) return isAdminEmail(member.email) ? 'owner' : (member.role ?? 'editor')
+  if (board?.ownerId && board.ownerId === userId) return 'owner'
+  return null
+}
+
+export const canEdit = (board, user) =>
+  isAdmin(user) || ['owner', 'editor'].includes(roleOf(board, user?.id))
+
+export const canManage = (board, user) => isAdmin(user) || roleOf(board, user?.id) === 'owner'
+
+export const folderMembers = (folder) => folder?.members ?? []
+
+export const folderRoleOf = (folder, userId) => {
+  const member = folderMembers(folder).find((m) => m.id === userId)
+  if (member) return isAdminEmail(member.email) ? 'owner' : (member.role ?? 'editor')
+  if (folder?.ownerId && folder.ownerId === userId) return 'owner'
+  return null
+}
+
+export const canManageFolder = (folder, user) =>
+  isAdmin(user) || folderRoleOf(folder, user?.id) === 'owner'
+
+export const cardsOfBoard = (state, boardId) => state.cards.filter((c) => c.boardId === boardId)
+export const cardsOfList = (state, listId) => state.cards.filter((c) => c.listId === listId)
+
+/* ---------------- reminders are per device ---------------- */
+
+const NOTES_KEY = 'novi.reminders'
+
+const loadNotes = (email) => {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return seed()
-    const parsed = JSON.parse(raw)
-    if (!parsed || !Array.isArray(parsed.boards)) return seed()
-    return { ...seed(), ...parsed, notifications: parsed.notifications ?? [] }
+    return JSON.parse(localStorage.getItem(`${NOTES_KEY}.${email}`) ?? '[]')
   } catch {
-    return seed()
+    return []
   }
 }
 
-/* ---------------- reducer ---------------- */
+const saveNotes = (email, notes) => {
+  try {
+    localStorage.setItem(`${NOTES_KEY}.${email}`, JSON.stringify(notes.slice(0, 50)))
+  } catch {
+    /* private mode, or storage is full */
+  }
+}
+
+/* ---------------- state ---------------- */
+
+const initialState = {
+  status: isConfigured ? 'loading' : 'unconfigured',
+  error: null,
+  user: null,
+  folders: [],
+  boards: [],
+  cards: [],
+  activeBoardId: null,
+  notifications: [],
+}
+
+const withoutMember = (members, email) => members.filter((m) => m.id !== email)
 
 function reducer(state, action) {
   switch (action.type) {
-    case 'login': {
-      const name = action.name.trim()
-      const email = action.email?.trim() ?? ''
-      const everyone = [
-        ...state.folders.flatMap((f) => folderMembers(f)),
-        ...state.boards.flatMap((b) => b.members),
-      ]
-      const existing =
-        (email && everyone.find((m) => m.email?.toLowerCase() === email.toLowerCase())) ||
-        everyone.find((m) => m.name.toLowerCase() === name.toLowerCase())
+    case 'status':
+      return { ...state, status: action.status, error: action.error ?? null }
 
-      const user = {
-        ...(existing ?? { id: uid('user'), color: colorForName(email || name), role: 'editor' }),
-        name: name || existing?.name || nameFromEmail(email),
-        email: email || existing?.email,
-      }
-      const admin = isAdminEmail(user.email)
+    case 'dismissError':
+      return { ...state, error: null }
 
-      // The admin owns everything; anyone else joins what they are not on yet.
-      const seat = (members) => {
-        const current = members.find((m) => m.id === user.id)
-        if (current) {
-          return members.map((m) =>
-            m.id === user.id ? { ...m, ...user, role: admin ? 'owner' : (m.role ?? 'editor') } : m,
-          )
-        }
-        const role = admin || members.length === 0 ? 'owner' : 'editor'
-        return [...members, { ...user, role }]
-      }
-
+    case 'session':
       return {
         ...state,
-        user,
-        folders: state.folders.map((f) => ({
-          ...f,
-          ownerId: admin ? user.id : f.ownerId,
-          members: seat(folderMembers(f)),
-        })),
-        boards: state.boards.map((b) => ({
-          ...b,
-          ownerId: admin ? user.id : b.ownerId,
-          members: seat(b.members),
-        })),
+        user: action.user,
+        notifications: action.user ? loadNotes(action.user.email) : [],
+        status: action.user ? 'loading' : 'signed-out',
+        folders: action.user ? state.folders : [],
+        boards: action.user ? state.boards : [],
+        cards: action.user ? state.cards : [],
       }
+
+    case 'hydrate': {
+      const { folders, boards, cards } = action.data
+      const activeBoardId = boards.some((b) => b.id === state.activeBoardId)
+        ? state.activeBoardId
+        : (boards[0]?.id ?? null)
+      return { ...state, folders, boards, cards, activeBoardId, status: 'ready' }
     }
 
-    case 'logout':
-      return { ...state, user: null }
+    case 'setActiveBoard':
+      return { ...state, activeBoardId: action.id }
 
-    case 'addFolder': {
-      const folder = {
-        id: uid('fold'),
-        name: action.name,
-        emoji: action.emoji ?? '\u{1F4C1}',
-        ownerId: state.user?.id ?? null,
-        members: state.user ? [{ ...state.user, role: 'owner' }] : [],
+    /* folders */
+
+    case 'addFolder':
+      return {
+        ...state,
+        folders: [
+          ...state.folders,
+          {
+            id: action.id,
+            name: action.name,
+            emoji: action.emoji ?? '📁',
+            ownerId: state.user.id,
+            ownerEmail: state.user.email,
+            members: [{ ...state.user, role: 'owner' }],
+          },
+        ],
       }
-      return { ...state, folders: [...state.folders, folder] }
-    }
 
     case 'renameFolder':
       return {
@@ -266,16 +161,23 @@ function reducer(state, action) {
       }
     }
 
+    /* boards */
+
     case 'addBoard': {
+      const folder = state.folders.find((f) => f.id === action.folderId)
+      const inherited = folderMembers(folder).map((m) => ({ ...m, inherited: true }))
       const board = {
-        id: uid('board'),
-        folderId: action.folderId ?? state.folders[0]?.id ?? null,
+        id: action.id,
+        folderId: action.folderId,
         name: action.name,
         accent: action.accent ?? 'blue',
-        ownerId: state.user?.id ?? null,
-        lists: DEFAULT_LISTS(),
-        members: state.user ? [{ ...state.user, role: 'owner' }] : [],
-        createdAt: Date.now(),
+        ownerId: state.user.id,
+        ownerEmail: state.user.email,
+        lists: action.lists,
+        members: [
+          { ...state.user, role: 'owner' },
+          ...inherited.filter((m) => m.id !== state.user.id),
+        ],
       }
       return { ...state, boards: [...state.boards, board], activeBoardId: board.id }
     }
@@ -294,15 +196,14 @@ function reducer(state, action) {
         activeBoardId: state.activeBoardId === action.id ? null : state.activeBoardId,
       }
 
-    case 'setActiveBoard':
-      return { ...state, activeBoardId: action.id }
+    /* lists */
 
     case 'addList':
       return {
         ...state,
         boards: state.boards.map((b) =>
           b.id === action.boardId
-            ? { ...b, lists: [...b.lists, { id: uid('list'), title: action.title }] }
+            ? { ...b, lists: [...b.lists, { id: action.id, title: action.title }] }
             : b,
         ),
       }
@@ -314,9 +215,7 @@ function reducer(state, action) {
           b.id === action.boardId
             ? {
                 ...b,
-                lists: b.lists.map((l) =>
-                  l.id === action.listId ? { ...l, title: action.title } : l,
-                ),
+                lists: b.lists.map((l) => (l.id === action.listId ? { ...l, title: action.title } : l)),
               }
             : b,
         ),
@@ -326,44 +225,32 @@ function reducer(state, action) {
       return {
         ...state,
         boards: state.boards.map((b) =>
-          b.id === action.boardId
-            ? { ...b, lists: b.lists.filter((l) => l.id !== action.listId) }
-            : b,
+          b.id === action.boardId ? { ...b, lists: b.lists.filter((l) => l.id !== action.listId) } : b,
         ),
         cards: state.cards.filter((c) => c.listId !== action.listId),
       }
 
+    /* people */
+
     case 'addFolderMember': {
-      const folder = state.folders.find((f) => f.id === action.folderId)
-      if (!folder) return state
-      const email = (action.email ?? '').trim()
-      const name = (action.name ?? '').trim() || (email ? nameFromEmail(email) : '')
-      if (!name) return state
-
-      const taken = folderMembers(folder).some(
-        (m) =>
-          m.name.toLowerCase() === name.toLowerCase() ||
-          (email && m.email?.toLowerCase() === email.toLowerCase()),
-      )
-      if (taken) return state
-
       const member = {
-        id: uid('user'),
-        name,
-        email: email || undefined,
-        color: colorForName(email || name),
+        id: action.email,
+        email: action.email,
+        name: action.name,
+        color: colorForName(action.email),
         role: action.role ?? 'editor',
+        pending: true,
       }
-
       return {
         ...state,
         folders: state.folders.map((f) =>
-          f.id === action.folderId ? { ...f, members: [...folderMembers(f), member] } : f,
+          f.id === action.folderId && !folderMembers(f).some((m) => m.id === member.id)
+            ? { ...f, members: [...folderMembers(f), member] }
+            : f,
         ),
-        // everyone in a folder is on that folder's boards
         boards: state.boards.map((b) =>
           b.folderId === action.folderId && !b.members.some((m) => m.id === member.id)
-            ? { ...b, members: [...b.members, member] }
+            ? { ...b, members: [...b.members, { ...member, inherited: true }] }
             : b,
         ),
       }
@@ -387,7 +274,7 @@ function reducer(state, action) {
             ? {
                 ...b,
                 members: b.members.map((m) =>
-                  m.id === action.memberId ? { ...m, role: action.role } : m,
+                  m.id === action.memberId && m.inherited ? { ...m, role: action.role } : m,
                 ),
               }
             : b,
@@ -400,12 +287,12 @@ function reducer(state, action) {
         ...state,
         folders: state.folders.map((f) =>
           f.id === action.folderId
-            ? { ...f, members: folderMembers(f).filter((m) => m.id !== action.memberId) }
+            ? { ...f, members: withoutMember(folderMembers(f), action.memberId) }
             : f,
         ),
         boards: state.boards.map((b) =>
           b.folderId === action.folderId
-            ? { ...b, members: b.members.filter((m) => m.id !== action.memberId) }
+            ? { ...b, members: b.members.filter((m) => !(m.id === action.memberId && m.inherited)) }
             : b,
         ),
         cards: state.cards.map((c) =>
@@ -417,28 +304,20 @@ function reducer(state, action) {
     }
 
     case 'addMember': {
-      const name = action.name.trim()
-      if (!name) return state
-      const board = state.boards.find((b) => b.id === action.boardId)
-      if (!board) return state
-      const invitedEmail = action.email?.trim().toLowerCase()
-      const alreadyOnBoard = board.members.some(
-        (m) =>
-          m.name.toLowerCase() === name.toLowerCase() ||
-          (invitedEmail && m.email?.toLowerCase() === invitedEmail),
-      )
-      if (alreadyOnBoard) return state
       const member = {
-        id: uid('user'),
-        name,
-        email: action.email?.trim() || undefined,
-        color: colorForName(action.email?.trim() || name),
+        id: action.email,
+        email: action.email,
+        name: action.name,
+        color: colorForName(action.email),
         role: action.role ?? 'editor',
+        pending: true,
       }
       return {
         ...state,
         boards: state.boards.map((b) =>
-          b.id === action.boardId ? { ...b, members: [...b.members, member] } : b,
+          b.id === action.boardId && !b.members.some((m) => m.id === member.id)
+            ? { ...b, members: [...b.members, member] }
+            : b,
         ),
       }
     }
@@ -462,9 +341,7 @@ function reducer(state, action) {
       return {
         ...state,
         boards: state.boards.map((b) =>
-          b.id === action.boardId
-            ? { ...b, members: b.members.filter((m) => m.id !== action.memberId) }
-            : b,
+          b.id === action.boardId ? { ...b, members: withoutMember(b.members, action.memberId) } : b,
         ),
         cards: state.cards.map((c) =>
           c.boardId === action.boardId && c.assigneeId === action.memberId
@@ -473,22 +350,28 @@ function reducer(state, action) {
         ),
       }
 
-    case 'addCard': {
-      const card = {
-        id: uid('card'),
-        boardId: action.boardId,
-        listId: action.listId,
-        title: action.title,
-        description: '',
-        dueDate: null,
-        remindBefore: 60,
-        assigneeId: action.assigneeId ?? null,
-        priority: 'medium',
-        done: false,
-        createdAt: Date.now(),
+    /* cards */
+
+    case 'addCard':
+      return {
+        ...state,
+        cards: [
+          ...state.cards,
+          {
+            id: action.id,
+            boardId: action.boardId,
+            listId: action.listId,
+            title: action.title,
+            description: '',
+            dueDate: null,
+            remindBefore: 60,
+            assigneeId: action.assigneeId ?? null,
+            priority: 'medium',
+            done: false,
+            createdAt: new Date().toISOString(),
+          },
+        ],
       }
-      return { ...state, cards: [...state.cards, card] }
-    }
 
     case 'updateCard':
       return {
@@ -496,7 +379,6 @@ function reducer(state, action) {
         cards: state.cards.map((c) => {
           if (c.id !== action.id) return c
           const next = { ...c, ...action.patch }
-          // a new deadline means the old reminder no longer applies
           if ('dueDate' in action.patch && action.patch.dueDate !== c.dueDate) next.notifiedAt = null
           if ('remindBefore' in action.patch && action.patch.remindBefore !== c.remindBefore) {
             next.notifiedAt = null
@@ -513,23 +395,22 @@ function reducer(state, action) {
       }
 
     case 'moveCard': {
-      const { cardId, toListId, toIndex } = action
-      const moving = state.cards.find((c) => c.id === cardId)
+      const moving = state.cards.find((c) => c.id === action.cardId)
       if (!moving) return state
 
       const board = state.boards.find((b) => b.id === moving.boardId)
       const lastListId = board?.lists[board.lists.length - 1]?.id
-      const changedList = moving.listId !== toListId
+      const changedList = moving.listId !== action.toListId
       const updated = {
         ...moving,
-        listId: toListId,
-        done: toListId === lastListId ? true : changedList ? false : moving.done,
+        listId: action.toListId,
+        done: action.toListId === lastListId ? true : changedList ? false : moving.done,
       }
 
-      const rest = state.cards.filter((c) => c.id !== cardId)
-      const others = rest.filter((c) => c.listId !== toListId)
-      const target = rest.filter((c) => c.listId === toListId)
-      const index = Math.max(0, Math.min(toIndex ?? target.length, target.length))
+      const rest = state.cards.filter((c) => c.id !== action.cardId)
+      const others = rest.filter((c) => c.listId !== action.toListId)
+      const target = rest.filter((c) => c.listId === action.toListId)
+      const index = Math.max(0, Math.min(action.toIndex ?? target.length, target.length))
       target.splice(index, 0, updated)
       return { ...state, cards: [...others, ...target] }
     }
@@ -548,97 +429,308 @@ function reducer(state, action) {
             ? {
                 ...c,
                 done,
-                listId: done ? lastListId ?? c.listId : c.listId === lastListId ? firstListId ?? c.listId : c.listId,
+                listId: done
+                  ? (lastListId ?? c.listId)
+                  : c.listId === lastListId
+                    ? (firstListId ?? c.listId)
+                    : c.listId,
               }
             : c,
         ),
       }
     }
 
-    case 'markNotified':
+    /* reminders */
+
+    case 'markNotified': {
+      const notifications = [
+        { id: `${action.id}-${Date.now()}`, cardId: action.id, at: Date.now(), read: false },
+        ...state.notifications,
+      ].slice(0, 50)
+      if (state.user) saveNotes(state.user.email, notifications)
       return {
         ...state,
         cards: state.cards.map((c) => (c.id === action.id ? { ...c, notifiedAt: Date.now() } : c)),
-        notifications: [
-          { id: uid('note'), cardId: action.id, at: Date.now(), read: false },
-          ...state.notifications,
-        ].slice(0, 50),
+        notifications,
       }
+    }
 
-    case 'readNotifications':
-      return { ...state, notifications: state.notifications.map((n) => ({ ...n, read: true })) }
+    case 'readNotifications': {
+      const notifications = state.notifications.map((n) => ({ ...n, read: true }))
+      if (state.user) saveNotes(state.user.email, notifications)
+      return { ...state, notifications }
+    }
 
     case 'clearNotifications':
+      if (state.user) saveNotes(state.user.email, [])
       return { ...state, notifications: [] }
-
-    case 'importBoard': {
-      const { board, cards } = action.payload
-      if (!board) return state
-      const folderId = state.folders.some((f) => f.id === board.folderId)
-        ? board.folderId
-        : state.folders[0]?.id ?? null
-      const exists = state.boards.some((b) => b.id === board.id)
-      const boards = exists
-        ? state.boards.map((b) => (b.id === board.id ? { ...board, folderId } : b))
-        : [...state.boards, { ...board, folderId }]
-      return {
-        ...state,
-        boards,
-        cards: [...state.cards.filter((c) => c.boardId !== board.id), ...(cards ?? [])],
-        activeBoardId: board.id,
-      }
-    }
-
-    case 'importFolder': {
-      const { folder, boards = [], cards = [] } = action.payload
-      if (!folder) return state
-      const exists = state.folders.some((f) => f.id === folder.id)
-      const boardIds = boards.map((b) => b.id)
-      return {
-        ...state,
-        folders: exists
-          ? state.folders.map((f) => (f.id === folder.id ? folder : f))
-          : [...state.folders, folder],
-        boards: [...state.boards.filter((b) => !boardIds.includes(b.id)), ...boards],
-        cards: [...state.cards.filter((c) => !boardIds.includes(c.boardId)), ...cards],
-        activeBoardId: boards[0]?.id ?? state.activeBoardId,
-      }
-    }
-
-    case 'reset':
-      return { ...seed(), user: state.user }
 
     default:
       return state
   }
 }
 
-/* ---------------- context ---------------- */
+/* ---------------- writing through to the database ---------------- */
+
+const newId = () =>
+  typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+
+/** Ids are minted here so the optimistic row and the stored row are the same row. */
+function prepare(action) {
+  switch (action.type) {
+    case 'addFolder':
+    case 'addList':
+    case 'addCard':
+      return { ...action, id: action.id ?? newId() }
+    case 'addBoard':
+      return {
+        ...action,
+        id: action.id ?? newId(),
+        lists: action.lists ?? DEFAULT_LIST_TITLES.map((title) => ({ id: newId(), title })),
+      }
+    case 'addFolderMember':
+    case 'addMember':
+      return { ...action, email: (action.email ?? '').trim().toLowerCase() }
+    default:
+      return action
+  }
+}
+
+async function persist(action, before, after) {
+  const user = after.user
+  switch (action.type) {
+    case 'addFolder':
+      return api.createFolder({
+        id: action.id,
+        name: action.name,
+        emoji: action.emoji ?? '📁',
+        ownerEmail: user.email,
+        ownerName: user.name,
+      })
+
+    case 'renameFolder':
+      return api.renameFolder(action.id, action.name)
+
+    case 'deleteFolder':
+      return api.deleteFolder(action.id)
+
+    case 'addBoard':
+      return api.createBoard({
+        id: action.id,
+        folderId: action.folderId,
+        name: action.name,
+        accent: action.accent ?? 'blue',
+        ownerEmail: user.email,
+        ownerName: user.name,
+        lists: action.lists,
+      })
+
+    case 'updateBoard':
+      return api.updateBoard(action.id, action.patch)
+
+    case 'deleteBoard':
+      return api.deleteBoard(action.id)
+
+    case 'addList': {
+      const board = after.boards.find((b) => b.id === action.boardId)
+      return api.createList({
+        id: action.id,
+        boardId: action.boardId,
+        title: action.title,
+        sortOrder: (board?.lists.length ?? 1) - 1,
+      })
+    }
+
+    case 'renameList':
+      return api.renameList(action.listId, action.title)
+
+    case 'deleteList':
+      return api.deleteList(action.listId)
+
+    case 'addFolderMember':
+      return api.addMember('folder', action.folderId, {
+        email: action.email,
+        name: action.name,
+        role: action.role ?? 'editor',
+      })
+
+    case 'setFolderMemberRole':
+      return api.setMemberRole('folder', action.folderId, action.memberId, action.role)
+
+    case 'removeFolderMember': {
+      const boardIds = before.boards.filter((b) => b.folderId === action.folderId).map((b) => b.id)
+      await api.unassignFromBoards(boardIds, action.memberId)
+      return api.removeMember('folder', action.folderId, action.memberId)
+    }
+
+    case 'addMember':
+      return api.addMember('board', action.boardId, {
+        email: action.email,
+        name: action.name,
+        role: action.role ?? 'editor',
+      })
+
+    case 'setMemberRole':
+      return api.setMemberRole('board', action.boardId, action.memberId, action.role)
+
+    case 'removeMember':
+      await api.unassignFromBoards([action.boardId], action.memberId)
+      return api.removeMember('board', action.boardId, action.memberId)
+
+    case 'addCard': {
+      const list = after.cards.filter((c) => c.listId === action.listId)
+      return api.createCard({
+        id: action.id,
+        boardId: action.boardId,
+        listId: action.listId,
+        title: action.title,
+        assigneeId: action.assigneeId ?? null,
+        sortOrder: list.length - 1,
+        createdBy: user.email,
+      })
+    }
+
+    case 'updateCard':
+      return api.updateCard(action.id, action.patch)
+
+    case 'deleteCard':
+      return api.deleteCard(action.id)
+
+    case 'moveCard': {
+      const ordered = after.cards.filter((c) => c.listId === action.toListId).map((c) => c.id)
+      const moved = after.cards.find((c) => c.id === action.cardId)
+      const wasDone = before.cards.find((c) => c.id === action.cardId)?.done
+      return api.reorderCards(
+        action.toListId,
+        ordered,
+        moved && moved.done !== wasDone ? { id: moved.id, patch: { done: moved.done } } : undefined,
+      )
+    }
+
+    case 'toggleDone': {
+      const card = after.cards.find((c) => c.id === action.id)
+      return api.updateCard(action.id, { done: card.done, listId: card.listId })
+    }
+
+    case 'markNotified':
+      return api.updateCard(action.id, { notifiedAt: Date.now() })
+
+    default:
+      return undefined
+  }
+}
+
+/* ---------------- provider ---------------- */
 
 const StoreContext = createContext(null)
 
 export function StoreProvider({ children }) {
-  const [state, dispatch] = useReducer(reducer, undefined, load)
+  const [state, localDispatch] = useReducer(reducer, initialState)
+  const stateRef = useRef(state)
+  stateRef.current = state
 
-  useEffect(() => {
+  const refresh = useCallback(async () => {
+    if (!supabase || !stateRef.current.user) return
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-    } catch {
-      /* storage unavailable: the app still works for this session */
+      // Anything invited to this address before they signed in counts as theirs
+      await api.acceptInvitations().catch(() => {})
+      const data = await api.loadWorkspace()
+      localDispatch({ type: 'hydrate', data })
+    } catch (error) {
+      localDispatch({ type: 'status', status: 'error', error: error.message })
     }
-  }, [state])
-
-  // Accept invite links of the form ?join=<code>
-  useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get('join')
-    if (!code) return
-    const payload = decodePayload(code)
-    if (payload?.folder) dispatch({ type: 'importFolder', payload })
-    else if (payload?.board) dispatch({ type: 'importBoard', payload })
-    window.history.replaceState({}, '', window.location.pathname)
   }, [])
 
-  const value = useMemo(() => ({ state, dispatch }), [state])
+  const dispatch = useCallback(
+    (action) => {
+      const prepared = prepare(action)
+      const before = stateRef.current
+      const after = reducer(before, prepared)
+
+      localDispatch(prepared)
+      stateRef.current = after
+
+      if (!supabase || !before.user) return
+
+      persist(prepared, before, after)?.catch((error) => {
+        // Show the server's version rather than leaving a change that never landed
+        console.error('Could not save that change:', error)
+        localDispatch({
+          type: 'status',
+          status: 'ready',
+          error: error.message ?? 'That change could not be saved.',
+        })
+        refresh()
+      })
+    },
+    [refresh],
+  )
+
+  /* session */
+  useEffect(() => {
+    if (!supabase) return undefined
+
+    const toUser = (session) => {
+      if (!session?.user?.email) return null
+      const email = session.user.email.toLowerCase()
+      return {
+        id: email,
+        email,
+        authId: session.user.id,
+        name: session.user.user_metadata?.full_name || email.split('@')[0],
+        color: colorForName(email),
+      }
+    }
+
+    supabase.auth.getSession().then(({ data }) => {
+      localDispatch({ type: 'session', user: toUser(data.session) })
+    })
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      localDispatch({ type: 'session', user: toUser(session) })
+    })
+
+    return () => sub.subscription.unsubscribe()
+  }, [])
+
+  /* first load, then live updates from anyone else working on the same data */
+  const userId = state.user?.id
+  useEffect(() => {
+    if (!supabase || !userId) return undefined
+
+    refresh()
+
+    let timer
+    const nudge = () => {
+      clearTimeout(timer)
+      timer = setTimeout(refresh, 250)
+    }
+
+    const channel = supabase.channel(`workspace-${userId}`)
+    ;['folders', 'folder_members', 'boards', 'board_members', 'lists', 'cards'].forEach((table) => {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table }, nudge)
+    })
+    channel.subscribe()
+
+    return () => {
+      clearTimeout(timer)
+      supabase.removeChannel(channel)
+    }
+  }, [userId, refresh])
+
+  const value = useMemo(
+    () => ({
+      state,
+      dispatch,
+      refresh,
+      dismissError: () => localDispatch({ type: 'dismissError' }),
+      signOut: () => supabase?.auth.signOut(),
+    }),
+    [state, dispatch, refresh],
+  )
+
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
 }
 
@@ -647,6 +739,3 @@ export const useStore = () => {
   if (!ctx) throw new Error('useStore must be used inside <StoreProvider>')
   return ctx
 }
-
-export const cardsOfBoard = (state, boardId) => state.cards.filter((c) => c.boardId === boardId)
-export const cardsOfList = (state, listId) => state.cards.filter((c) => c.listId === listId)

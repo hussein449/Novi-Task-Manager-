@@ -1,143 +1,172 @@
 # Novi — Task Manager
 
-A responsive, Trello-style task manager with drag & drop, deadlines and reminders.
-Built with React 18, Vite and Tailwind CSS v4 in a clean, neutral interface: white
-surfaces, grey dividers and a single blue accent. Everything is stored locally in
-the browser, so there is no backend to run.
+A responsive, Trello-style task manager with drag & drop, deadlines, reminders
+and per-folder teams. React 18 + Vite + Tailwind CSS v4 on the front, Supabase
+(Postgres, Auth, Realtime, Edge Functions) on the back, deployed to Netlify.
 
 ## What it does
 
-- **Name-based login + invites** — sign in with just your name. Invite people to a
-  board by name, or send an invite link that carries the whole board (lists, cards,
-  members) to another browser.
-- **Folders → boards → tasks** — group boards in folders, one per client or project.
-- **People per folder** — each folder has its own member list, opened from Projects
-  or from the Overview. Add someone by name, by email, or both (an email on its own
-  becomes their name), give them a role, see their open and done counts, or remove
-  them. Folder membership is what grants access: adding someone puts them on every
-  board in that folder, changing their role changes it everywhere in the folder, and
-  removing them takes them off every board and unassigns their tasks. Each folder
-  also has its own invite link carrying the folder with all its boards and tasks.
-- **Three statuses out of the box** — To Do / Doing / Done. The board is a task
-  list grouped by status: one row per task with its deadline, priority and
-  assignee in aligned columns, and a group header you can collapse. Nothing
-  scrolls sideways at any width. Statuses can be renamed, added or deleted, and
-  moving a task into the last one marks it complete.
-- **People section** — a view of its own: every folder with its members, their
-  email and their role, plus each project inside the folder with its own member
-  list. Add someone to the folder (they join every project in it) or to a single
-  project, by name, by email, or both.
-- **Workspace admin** — one address, set in `src/config.js`, owns every folder and
-  project automatically. Sign in with it and you can add people, set roles and edit
-  any task without being invited first.
-- **Roles** — every person on a folder or board is an owner, an editor or a viewer. Editors
-  add and change tasks; viewers can read the board but get no add buttons, no drag
-  handles and a read-only task dialog; only the owner invites people, sets their
-  role, renames the board or changes its colour.
-- **Deadline calendar** — a panel beside the board, opened and closed from the top
-  bar, showing the month with a coloured dot per person on each day. Filter it to
-  one person, click a day to list what is due, click a task to open it.
-- **Drag & drop** — powered by dnd-kit, with pointer, touch and keyboard sensors,
-  so it works on a phone as well as a desktop. Drag a row by its handle to reorder
-  it or to move it to another status.
-- **Deadlines, assignees, priorities** — every card carries a due date, an assigned
-  board member, a priority and a description.
-- **Reminders** — pick a lead time per card (at the deadline, 10 min, 1 hour, 3 hours,
-  1 day, 2 days before). Reminders surface as in-app toasts and as desktop
-  notifications once you allow them.
-- **Planner** — every deadline across every board, grouped into Overdue / Today /
-  Tomorrow / This week / Later.
-- **Overview** — headline counts, then a section per project folder: its boards
-  with progress, and the people in that folder with their role and workload.
-  Finishes with the next deadlines across every folder.
-- **Inbox** — reminders that have fired, plus everything assigned to you.
+- **Folders → projects → tasks** — group projects in folders, one per client.
+- **People per folder** — a folder has its own member list. Add someone by email
+  and they join every project inside it; add them to one project instead when
+  that is all they need. The **People** section shows both, with roles.
+- **Invitations by email** — adding someone emails them a link. When no email
+  provider is configured the invitation is still recorded and the app hands you
+  the link to send yourself (see [Invitations](#invitations)).
+- **Roles** — owner, editor, viewer, enforced by Postgres row level security and
+  not only by the interface. A viewer cannot add a task even with the API open.
+- **Workspace admin** — one address owns every folder and project.
+- **Three statuses out of the box** — To Do / Doing / Done as full-width groups,
+  one row per task with its deadline, priority and assignee. Nothing scrolls
+  sideways at any width, and statuses can be renamed, added or collapsed.
+- **Drag & drop** — dnd-kit with pointer, touch and keyboard sensors. Drag a row
+  by its handle to reorder it or move it to another status.
+- **Deadlines and reminders** — per-task deadline with a lead time (at the
+  deadline, 10 minutes, 1 hour, 3 hours, 1 day or 2 days before), delivered as
+  in-app toasts and desktop notifications.
+- **Deadline calendar** — a panel beside the board, with a dot per person on
+  each day and a filter by person.
+- **Planner / Inbox / Overview** — everything due in order, the reminders that
+  fired, and a per-folder breakdown of progress and workload.
+- **Live** — two people on the same board see each other's changes.
 
-## Run it
+## Running it locally
 
 ```bash
 npm install
+cp .env.example .env.local   # then fill in the three values
 npm run dev
 ```
 
-Then open http://localhost:5173.
+`.env.local`:
 
-To make a production build:
+| Variable | Where it comes from |
+| --- | --- |
+| `VITE_SUPABASE_URL` | Supabase → Project Settings → Data API → Project URL |
+| `VITE_SUPABASE_ANON_KEY` | the publishable (anon) key on the same page |
+| `VITE_ADMIN_EMAIL` | the address that should own everything |
+
+Without them the app boots into a short "set these three variables" screen
+rather than failing silently.
+
+## Deploying to Netlify
+
+1. Push this repository to GitHub, then in Netlify choose **Add new site →
+   Import an existing project** and pick it.
+2. `netlify.toml` already sets the build command (`npm run build`), the publish
+   directory (`dist`) and the single-page-app redirect, so the defaults are
+   correct.
+3. Add the same three variables under **Site configuration → Environment
+   variables**, then deploy. They are read at build time, so changing one needs
+   a redeploy.
+4. In Supabase → **Authentication → URL Configuration**, set the site URL to
+   your Netlify domain and add it to the redirect allow-list, so sign-in links
+   come back to the right place.
+
+## The backend
+
+`supabase/migrations/` holds the schema that the hosted project runs, and
+`supabase/functions/invite/` the invitation endpoint. To rebuild it on another
+project:
 
 ```bash
-npm run build
+supabase link --project-ref <ref>
+supabase db push
+supabase functions deploy invite
 ```
 
-The output lands in `dist/` and can be served by any static host (GitHub Pages,
-Netlify, Vercel). `vite.config.js` uses a relative `base`, so it also works from a
-sub-path.
+then, in the SQL editor:
+
+```sql
+insert into public.admins (email) values ('you@example.com');
+```
+
+### How access is decided
+
+Everyone is identified by **email**, which is the one handle that exists before
+someone has an account — that is what lets you invite a colleague and assign
+them work in the same minute.
+
+Three SECURITY DEFINER functions answer every policy: `is_admin()`,
+`folder_role(folder)` and `board_role(board)`. A board inherits the folder's
+role unless the person was added to that board directly. Policies then read:
+anyone with a role may select; editors and owners may write tasks and lists;
+only owners may change membership or delete.
+
+Because the rules live in the database, the interface and the API agree. A
+viewer who calls the REST API by hand gets `new row violates row-level security
+policy` rather than a new task.
+
+### Invitations
+
+Adding someone calls the `invite` edge function, which:
+
+1. writes the membership **through the caller's own token**, so row level
+   security still decides whether they may invite at all, and
+2. tries to email the invitation.
+
+Step 2 needs an email provider, and providers cost money past a free tier, so
+the function treats a failure as ordinary: it returns `emailed: false` with the
+invitation link, and the app shows **Copy link** and **Open mail app** instead
+of an error. The person is already a member either way — they just need to know.
+
+To turn real email on, set these on the function (Supabase → Edge Functions →
+invite → Secrets):
+
+| Secret | Notes |
+| --- | --- |
+| `RESEND_API_KEY` | [Resend](https://resend.com) has a free tier of 3,000 emails a month |
+| `INVITE_FROM_EMAIL` | e.g. `Novi <hello@yourdomain.com>`; needs a verified domain |
+| `APP_URL` | fallback link base when the app does not send one |
+
+Supabase's own auth emails (magic links, confirmations) are separate and use the
+project's SMTP settings, which are rate-limited until you connect your own SMTP.
 
 ## How it is put together
 
 ```
 src/
-  store.jsx              state, reducer and localStorage persistence
-  lib/utils.js           ids, colors, date formatting, invite encoding
-  lib/useReminders.js    the deadline watcher behind toasts and notifications
+  config.js                environment: Supabase keys and the admin address
+  store.jsx                state, permissions, and every write to the database
+  lib/supabase.js          the client
+  lib/api.js               queries, mutations, ordering RPC, invitations
+  lib/useReminders.js      the deadline watcher behind toasts and notifications
+  lib/utils.js             ids, colours, dates, email helpers
   components/
-    Board.jsx            DndContext, status groups, calendar panel, drag overlay
-    StatusGroup.jsx      one status group: header, rows, inline add
-    TaskRow.jsx          a sortable task row and its visual face
-    Calendar.jsx         month calendar of deadlines, filtered per person
-    CardModal.jsx        deadline, reminder, assignee, status, priority
-    BoardsView.jsx       folders and boards, create/delete
-    Planner.jsx          deadlines grouped by time bucket
-    Inbox.jsx            fired reminders and my open cards
-    Overview.jsx         cross-board stats
-    InviteModal.jsx          invite to one board, by name or email, + invite link
-    FolderMembersModal.jsx   a folder's people: add, set roles, remove, invite link
-    People.jsx               people per folder and per project, with roles
-    Chrome.jsx           top bar, sidebar, mobile menu and nav, toasts
-    ui.jsx               icons, avatars, modal, buttons
+    Board.jsx              DndContext, status groups, calendar panel
+    StatusGroup.jsx        one status: header, rows, inline add
+    TaskRow.jsx            a sortable task row and its visual face
+    Calendar.jsx           month calendar of deadlines, filtered per person
+    CardModal.jsx          deadline, reminder, assignee, status, priority
+    BoardsView.jsx         folders and projects
+    People.jsx             people per folder and per project, with roles
+    InvitePanel.jsx        invite by email, with the send-it-yourself fallback
+    FolderMembersModal.jsx a folder's people
+    InviteModal.jsx        one project's people
+    Planner / Inbox / Overview
+    Chrome.jsx             top bar, sidebar, mobile menu and nav, toasts
+    ui.jsx                 icons, avatars, modal, buttons
+supabase/
+  migrations/              the schema, including every policy
+  functions/invite/        the invitation endpoint
 ```
 
-### State
-
-One reducer in `src/store.jsx` holds `folders`, `boards`, `cards`, the signed-in
-`user` and fired `notifications`. It is persisted to `localStorage` under
-`novi.task-manager.v1` on every change and rehydrated on load.
+State is optimistic: a change lands in the interface immediately and is written
+straight after. If the write fails the error is shown and the server's version
+is loaded back, so what you see is never a change that did not happen.
 
 ### Drag and drop
 
-Three things keep dropping reliable, and each fixes a real failure: the droppable
-covers the whole status group rather than just its rows; collision detection is
-`pointerWithin`, so the group under the cursor wins; and droppables re-measure
-with `MeasuringStrategy.Always`, so rects are never stale after the layout
-shifts. `html { scrollbar-gutter: stable }` matters too — without it a scrollbar
-appearing mid-drag resizes the window, and dnd-kit cancels a drag on resize.
-
-### Invite links
-
-An invite link is `?join=<code>`, where the code is a URL-safe base64 payload: a
-folder with its boards and tasks, or a single board with its tasks. Opening the
-link imports it into the recipient's workspace.
-Because storage is local, this copies the board rather than syncing it live — a
-backend would be the next step if you want real-time collaboration.
-
-### The admin, and what roles actually protect
-
-`src/config.js` holds one constant:
-
-```js
-export const ADMIN_EMAIL = 'you@example.com'
-```
-
-Signing in with that address makes you the owner of every folder and board: role
-checks short-circuit for the admin, and the sign-in seats you on everything as
-owner. Change the constant to move the admin to another address.
-
-Roles decide what the interface offers — buttons, drag handles, editable fields.
-They are not a security boundary: everything lives in the visitor's own browser,
-so anyone who opens the devtools can change their own copy. Enforcing access for
-real needs a backend that checks identity on every request, at which point these
-same roles become the rules it enforces.
+Three things keep dropping reliable: the droppable covers the whole status group
+rather than just its rows; collision detection is `pointerWithin`, so the group
+under the cursor wins; and droppables re-measure with `MeasuringStrategy.Always`
+so rectangles are never stale after the layout shifts. `html { scrollbar-gutter:
+stable }` matters too — without it a scrollbar appearing mid-drag resizes the
+window, and dnd-kit cancels a drag on resize. Each drop is saved as a single
+`reorder_cards` call, so positions are never half-written.
 
 ## Notes and limits
 
-- Data lives in the browser: clearing site data clears the boards, and two people on
-  two devices each hold their own copy.
-- Desktop notifications need the browser tab to stay open and permission granted.
+- Reminders fire while a tab is open; desktop notifications need permission.
+- Email delivery depends on the provider you configure, as above.
+- The free Supabase tier pauses a project after a week without requests.

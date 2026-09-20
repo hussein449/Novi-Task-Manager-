@@ -1,37 +1,98 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Icon, inputClass, Button } from './ui'
-import { useStore } from '../store'
-import { decodePayload, isEmail, nameFromEmail } from '../lib/utils'
+import { supabase } from '../lib/supabase'
+import { isEmail } from '../lib/utils'
 import { isAdminEmail } from '../config'
 
+const MODES = {
+  signin: { title: 'Sign in', action: 'Sign in', other: 'signup', otherLabel: 'Create an account' },
+  signup: {
+    title: 'Create an account',
+    action: 'Create account',
+    other: 'signin',
+    otherLabel: 'I already have one',
+  },
+}
+
 export default function Login() {
-  const { dispatch } = useStore()
+  const [mode, setMode] = useState('signin')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
-  const [code, setCode] = useState('')
-  const [showJoin, setShowJoin] = useState(false)
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
 
-  const submit = (e) => {
+  // Someone arriving from an invitation gets their address filled in
+  useEffect(() => {
+    const invited = new URLSearchParams(window.location.search).get('email')
+    if (invited) {
+      setEmail(invited)
+      setNotice('You have been invited. Sign in with this address to see the work shared with you.')
+    }
+  }, [])
+
+  const run = async (fn) => {
+    setBusy(true)
+    setError('')
+    try {
+      const { error: authError } = await fn()
+      if (authError) throw authError
+      return true
+    } catch (e) {
+      setError(e.message ?? 'That did not work.')
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const submit = async (e) => {
     e.preventDefault()
-    const value = name.trim()
-    const mail = email.trim()
-    if (!value && !mail) return
-    if (mail && !isEmail(mail)) {
-      setError('That email address does not look right.')
+    if (!isEmail(email)) {
+      setError('Enter a valid email address.')
+      return
+    }
+    if (password.length < 6) {
+      setError('Use a password of at least 6 characters.')
       return
     }
 
-    if (code.trim()) {
-      const payload = decodePayload(code.trim().split('join=').pop())
-      if (!payload?.board) {
-        setError('That invite code could not be read. Check that you copied all of it.')
-        return
-      }
-      dispatch({ type: 'importBoard', payload })
+    if (mode === 'signin') {
+      await run(() => supabase.auth.signInWithPassword({ email: email.trim(), password }))
+      return
     }
-    dispatch({ type: 'login', name: value || nameFromEmail(mail), email: mail })
+
+    const ok = await run(() =>
+      supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: { data: { full_name: name.trim() || email.split('@')[0] } },
+      }),
+    )
+    if (ok) {
+      setNotice(
+        'Account created. If the project asks for email confirmation, open the link sent to you, then sign in.',
+      )
+      setMode('signin')
+    }
   }
+
+  const magicLink = async () => {
+    if (!isEmail(email)) {
+      setError('Enter your email address first.')
+      return
+    }
+    const ok = await run(() =>
+      supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: { emailRedirectTo: window.location.origin },
+      }),
+    )
+    if (ok) setNotice(`A sign-in link is on its way to ${email.trim()}.`)
+  }
+
+  const copy = MODES[mode]
 
   return (
     <div className="min-h-dvh grid lg:grid-cols-2">
@@ -44,31 +105,36 @@ export default function Login() {
             <span className="text-lg font-semibold text-ink">Novi</span>
           </div>
 
-          <h1 className="text-2xl font-semibold text-ink tracking-tight">Sign in</h1>
+          <h1 className="text-2xl font-semibold text-ink tracking-tight">{copy.title}</h1>
           <p className="text-sm text-ink-2 mt-1.5 mb-6">
-            Enter your name to open your boards, and your email if you were invited by one.
-            No password needed.
+            Boards, deadlines and people, shared with your team.
           </p>
 
+          {notice && (
+            <p className="mb-4 rounded-lg border border-line bg-primary-soft/60 px-3 py-2 text-sm text-ink-2">
+              {notice}
+            </p>
+          )}
+
           <form noValidate onSubmit={submit} className="space-y-4">
-            <label className="block">
-              <span className="block text-sm font-medium text-ink-2 mb-1.5">Your name</span>
-              <input
-                autoFocus
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Hussein"
-                className={inputClass}
-              />
-            </label>
+            {mode === 'signup' && (
+              <label className="block">
+                <span className="block text-sm font-medium text-ink-2 mb-1.5">Your name</span>
+                <input
+                  autoFocus
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Hussein"
+                  className={inputClass}
+                />
+              </label>
+            )}
 
             <label className="block">
-              <span className="flex items-center gap-2 text-sm font-medium text-ink-2 mb-1.5">
-                Email
-                <span className="text-xs font-normal text-ink-3">optional</span>
-              </span>
+              <span className="block text-sm font-medium text-ink-2 mb-1.5">Email</span>
               <input
                 type="email"
+                autoFocus={mode === 'signin'}
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value)
@@ -77,45 +143,54 @@ export default function Login() {
                 placeholder="you@company.com"
                 className={inputClass}
               />
-              <span className="block mt-1.5 text-xs text-ink-3">
-                {isAdminEmail(email)
-                  ? 'This is the workspace admin — you will own every folder and board.'
-                  : 'Signing in with the email you were invited with keeps your role.'}
-              </span>
+              {isAdminEmail(email) && (
+                <span className="block mt-1.5 text-xs text-primary">
+                  This is the workspace admin — you own every folder and project.
+                </span>
+              )}
             </label>
 
-            {showJoin && (
-              <label className="block animate-pop">
-                <span className="block text-sm font-medium text-ink-2 mb-1.5">Invite code or link</span>
-                <input
-                  value={code}
-                  onChange={(e) => {
-                    setCode(e.target.value)
-                    setError('')
-                  }}
-                  placeholder="Paste the invite you were sent"
-                  className={inputClass}
-                />
-              </label>
-            )}
+            <label className="block">
+              <span className="block text-sm font-medium text-ink-2 mb-1.5">Password</span>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  setError('')
+                }}
+                placeholder="At least 6 characters"
+                className={inputClass}
+                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+              />
+            </label>
 
             {error && <p className="text-xs text-danger">{error}</p>}
 
-            <Button
-              type="submit"
-              disabled={!name.trim() && !email.trim()}
-              className="w-full py-2.5"
-            >
-              Continue
+            <Button type="submit" disabled={busy} className="w-full py-2.5">
+              {busy ? 'Working…' : copy.action}
             </Button>
 
-            <button
-              type="button"
-              onClick={() => setShowJoin((v) => !v)}
-              className="w-full text-sm text-ink-2 hover:text-primary transition"
-            >
-              {showJoin ? 'I do not have an invite' : 'I have an invite code'}
-            </button>
+            <div className="flex items-center justify-between text-sm">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode(copy.other)
+                  setError('')
+                }}
+                className="text-ink-2 hover:text-primary transition"
+              >
+                {copy.otherLabel}
+              </button>
+              <button
+                type="button"
+                onClick={magicLink}
+                disabled={busy}
+                className="text-ink-2 hover:text-primary transition"
+              >
+                Email me a link
+              </button>
+            </div>
           </form>
         </div>
       </div>
@@ -124,10 +199,10 @@ export default function Login() {
         <h2 className="text-xl font-semibold text-ink">Plan work, hit deadlines.</h2>
         <ul className="mt-6 space-y-4 max-w-sm">
           {[
-            ['Boards per client or project', 'Group them in folders so nothing gets mixed up.'],
-            ['To Do, Doing, Done', 'Drag cards between stages on desktop or on your phone.'],
-            ['Deadlines with reminders', 'Get a nudge before a card is due, not after.'],
-            ['One view of everything', 'Overview and Planner show every board at once.'],
+            ['Folders per client or project', 'Add people once and they join every board inside.'],
+            ['To Do, Doing, Done', 'Drag tasks between stages on a desktop or a phone.'],
+            ['Deadlines with reminders', 'A nudge before a task is due, not after.'],
+            ['Everyone sees the same board', 'Changes land for your team as they happen.'],
           ].map(([title, hint]) => (
             <li key={title} className="flex gap-3">
               <span className="mt-0.5 grid place-items-center w-5 h-5 rounded-full bg-primary-soft text-primary shrink-0">
