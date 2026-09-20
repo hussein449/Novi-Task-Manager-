@@ -21,6 +21,8 @@ export default function List({ board, list, cards, onOpenCard }) {
     if (adding) inputRef.current?.focus()
   }, [adding])
 
+  useEffect(() => setListTitle(list.title), [list.title])
+
   useEffect(() => {
     if (!menuOpen) return undefined
     const onClick = (e) => {
@@ -56,11 +58,11 @@ export default function List({ board, list, cards, onOpenCard }) {
 
   return (
     <div
-      className={`shrink-0 w-[85vw] xs:w-[78vw] sm:w-[320px] max-w-[340px] rounded-3xl glass p-3 transition ${
-        isOver ? 'ring-2 ring-brand-500/60 bg-brand-500/5' : ''
+      className={`shrink-0 w-[82vw] xs:w-[300px] sm:w-[312px] rounded-xl border bg-muted transition ${
+        isOver ? 'border-primary ring-2 ring-primary/15' : 'border-line'
       }`}
     >
-      <header className="flex items-center gap-2 px-1.5 pb-2.5">
+      <header className="flex items-center gap-2 px-3 pt-3 pb-2">
         {renaming ? (
           <input
             autoFocus
@@ -74,36 +76,36 @@ export default function List({ board, list, cards, onOpenCard }) {
                 setRenaming(false)
               }
             }}
-            className="flex-1 min-w-0 bg-white/10 rounded-lg px-2 py-1 text-sm font-semibold outline-none ring-2 ring-brand-500/40"
+            className="flex-1 min-w-0 rounded-md border border-primary bg-surface px-2 py-1 text-sm font-semibold outline-none ring-2 ring-primary/20"
           />
         ) : (
           <button
             onClick={() => setRenaming(true)}
-            className="font-semibold text-[15px] text-white/90 truncate hover:text-white"
+            className="font-semibold text-sm text-ink truncate hover:text-primary transition"
             title="Rename list"
           >
             {list.title}
           </button>
         )}
 
-        <span className="ml-auto text-xs font-semibold text-white/45 tabular-nums">{cards.length}</span>
+        <span className="ml-auto text-xs font-medium text-ink-3 tabular-nums">{cards.length}</span>
 
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setMenuOpen((v) => !v)}
-            className="p-1.5 rounded-lg text-white/55 hover:text-white hover:bg-white/10 transition"
-            aria-label="List actions"
+            className="p-1 rounded-md text-ink-3 hover:text-ink hover:bg-line/70 transition"
+            aria-label={`Actions for ${list.title}`}
           >
             <Icon name="dots" className="w-4 h-4" />
           </button>
           {menuOpen && (
-            <div className="absolute right-0 top-9 z-30 w-44 rounded-xl glass p-1.5 shadow-2xl animate-pop">
+            <div className="absolute right-0 top-8 z-30 w-44 rounded-lg border border-line bg-surface p-1 shadow-lg animate-pop">
               <button
                 onClick={() => {
                   setMenuOpen(false)
                   setRenaming(true)
                 }}
-                className="w-full text-left px-3 py-2 rounded-lg text-sm text-white/80 hover:bg-white/10"
+                className="w-full text-left px-3 py-2 rounded-md text-sm text-ink hover:bg-muted"
               >
                 Rename list
               </button>
@@ -112,16 +114,18 @@ export default function List({ board, list, cards, onOpenCard }) {
                   setMenuOpen(false)
                   setAdding(true)
                 }}
-                className="w-full text-left px-3 py-2 rounded-lg text-sm text-white/80 hover:bg-white/10"
+                className="w-full text-left px-3 py-2 rounded-md text-sm text-ink hover:bg-muted"
               >
                 Add a card
               </button>
               <button
                 onClick={() => {
                   if (board.lists.length <= 1) return
-                  dispatch({ type: 'deleteList', boardId: board.id, listId: list.id })
+                  if (window.confirm(`Delete the list "${list.title}" and its cards?`)) {
+                    dispatch({ type: 'deleteList', boardId: board.id, listId: list.id })
+                  }
                 }}
-                className="w-full text-left px-3 py-2 rounded-lg text-sm text-rose-300 hover:bg-rose-500/15 disabled:opacity-40"
+                className="w-full text-left px-3 py-2 rounded-md text-sm text-danger hover:bg-danger-soft disabled:opacity-40"
                 disabled={board.lists.length <= 1}
               >
                 Delete list
@@ -133,7 +137,7 @@ export default function List({ board, list, cards, onOpenCard }) {
 
       <div
         ref={setNodeRef}
-        className="flex flex-col gap-2 min-h-[12px] max-h-[calc(100vh-360px)] sm:max-h-[calc(100vh-300px)] overflow-y-auto thin-scroll pr-0.5"
+        className="flex flex-col gap-2 px-2 min-h-[8px] max-h-[calc(100vh-330px)] sm:max-h-[calc(100vh-270px)] overflow-y-auto thin-scroll"
       >
         <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
           {cards.map((card) => (
@@ -148,14 +152,14 @@ export default function List({ board, list, cards, onOpenCard }) {
         </SortableContext>
 
         {cards.length === 0 && !adding && (
-          <p className="text-xs text-white/35 px-2 py-6 text-center">
-            Drop a card here
+          <p className="rounded-lg border border-dashed border-line-strong text-xs text-ink-3 px-3 py-5 text-center">
+            Drag a card here
           </p>
         )}
       </div>
 
       {adding ? (
-        <form onSubmit={submit} className="mt-2">
+        <form onSubmit={submit} className="p-2">
           <textarea
             ref={inputRef}
             rows={2}
@@ -168,13 +172,13 @@ export default function List({ board, list, cards, onOpenCard }) {
                 setAdding(false)
               }
             }}
-            placeholder="What needs doing?"
-            className="w-full resize-none rounded-2xl bg-white/10 border border-white/15 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500/40 placeholder:text-white/35"
+            placeholder="Card title, then press Enter"
+            className="w-full resize-none rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 placeholder:text-ink-3"
           />
           <div className="flex items-center gap-2 mt-2">
             <button
               type="submit"
-              className="rounded-xl bg-brand-500 hover:bg-brand-600 px-3.5 py-2 text-sm font-semibold transition"
+              className="rounded-lg bg-primary hover:bg-primary-dark text-white px-3 py-1.5 text-sm font-medium transition"
             >
               Add card
             </button>
@@ -184,17 +188,16 @@ export default function List({ board, list, cards, onOpenCard }) {
                 setTitle('')
                 setAdding(false)
               }}
-              className="p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10"
-              aria-label="Cancel"
+              className="rounded-lg px-2.5 py-1.5 text-sm text-ink-2 hover:bg-line/70 transition"
             >
-              <Icon name="x" className="w-4 h-4" />
+              Cancel
             </button>
           </div>
         </form>
       ) : (
         <button
           onClick={() => setAdding(true)}
-          className="mt-2 w-full flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm text-white/65 hover:text-white hover:bg-white/10 transition"
+          className="m-2 w-[calc(100%-1rem)] flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium text-ink-2 hover:bg-line/70 hover:text-ink transition"
         >
           <Icon name="plus" className="w-4 h-4" />
           Add a card

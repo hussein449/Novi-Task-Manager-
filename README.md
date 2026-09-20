@@ -1,8 +1,9 @@
 # Novi — Task Manager
 
 A responsive, Trello-style task manager with drag & drop, deadlines and reminders.
-Built with React 18, Vite and Tailwind CSS v4. Everything is stored locally in the
-browser, so there is no backend to run.
+Built with React 18, Vite and Tailwind CSS v4 in a clean, neutral interface: white
+surfaces, grey dividers and a single blue accent. Everything is stored locally in
+the browser, so there is no backend to run.
 
 ## What it does
 
@@ -61,7 +62,7 @@ src/
     Inbox.jsx            fired reminders and my open cards
     Overview.jsx         cross-board stats
     InviteModal.jsx      invite by name + invite link
-    Chrome.jsx           top bar, bottom nav, sidebar, toasts
+    Chrome.jsx           top bar, sidebar, mobile menu and nav, toasts
     ui.jsx               icons, avatars, modal, buttons
 ```
 

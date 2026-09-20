@@ -5,23 +5,23 @@ import { PRIORITIES } from '../store'
 import { dueState, formatDue } from '../lib/utils'
 
 const dueChip = {
-  overdue: 'bg-rose-500/25 text-rose-100 border-rose-400/40',
-  soon: 'bg-amber-500/25 text-amber-100 border-amber-400/40',
-  upcoming: 'bg-white/10 text-white/70 border-white/15',
-  done: 'bg-emerald-500/20 text-emerald-100 border-emerald-400/30',
+  overdue: 'bg-danger-soft text-danger border-red-200',
+  soon: 'bg-warning-soft text-warning border-amber-200',
+  upcoming: 'bg-muted text-ink-2 border-line',
+  done: 'bg-success-soft text-success border-emerald-200',
   none: '',
 }
 
-export function CardFace({ card, member, onToggleDone, dragging = false, compact = false }) {
+export function CardFace({ card, member, onToggleDone, dragging = false, compact = false, meta }) {
   const state = dueState(card.dueDate, card.done)
   const priority = PRIORITIES[card.priority] ?? PRIORITIES.medium
 
   return (
     <div
-      className={`group rounded-2xl border p-3 text-left transition ${
+      className={`rounded-lg border bg-surface p-3 text-left transition ${
         dragging
-          ? 'bg-ink-700/95 border-white/25 shadow-2xl shadow-black/50 rotate-2'
-          : 'bg-white/[0.07] border-white/10 hover:bg-white/[0.12] hover:border-white/20'
+          ? 'border-line-strong shadow-lg rotate-1'
+          : 'border-line shadow-xs hover:border-line-strong hover:shadow-sm'
       }`}
     >
       <div className="flex items-start gap-2.5">
@@ -31,10 +31,10 @@ export function CardFace({ card, member, onToggleDone, dragging = false, compact
             onToggleDone?.(card.id)
           }}
           onPointerDown={(e) => e.stopPropagation()}
-          className={`mt-0.5 shrink-0 w-[18px] h-[18px] rounded-full border flex items-center justify-center transition ${
+          className={`mt-px shrink-0 w-[18px] h-[18px] rounded-full border flex items-center justify-center transition ${
             card.done
-              ? 'bg-emerald-500 border-emerald-400 text-white'
-              : 'border-white/35 text-transparent hover:border-white/70'
+              ? 'bg-success border-success text-white'
+              : 'border-line-strong text-transparent hover:border-primary hover:text-primary/40'
           }`}
           aria-label={card.done ? 'Mark as not done' : 'Mark as done'}
         >
@@ -43,21 +43,22 @@ export function CardFace({ card, member, onToggleDone, dragging = false, compact
 
         <div className="min-w-0 flex-1">
           <p
-            className={`text-sm leading-snug break-words ${
-              card.done ? 'line-through text-white/45' : 'text-white/95'
+            className={`text-sm font-medium leading-snug break-words ${
+              card.done ? 'line-through text-ink-3' : 'text-ink'
             }`}
           >
             {card.title}
           </p>
 
           {!compact && card.description && (
-            <p className="mt-1 text-xs text-white/45 line-clamp-2">{card.description}</p>
+            <p className="mt-1 text-xs text-ink-3 line-clamp-2">{card.description}</p>
           )}
+          {meta && <p className="mt-1 text-xs text-ink-3">{meta}</p>}
 
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             {card.dueDate && (
               <span
-                className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium ${dueChip[state]}`}
+                className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs font-medium ${dueChip[state]}`}
               >
                 <Icon name="clock" className="w-3.5 h-3.5" />
                 {formatDue(card.dueDate)}
@@ -65,7 +66,7 @@ export function CardFace({ card, member, onToggleDone, dragging = false, compact
             )}
             {card.priority && card.priority !== 'medium' && (
               <span
-                className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium ${priority.chip}`}
+                className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs font-medium ${priority.chip}`}
               >
                 <Icon name="flag" className="w-3.5 h-3.5" />
                 {priority.label}
@@ -90,7 +91,7 @@ export default function TaskCard({ card, member, onOpen, onToggleDone }) {
   const style = {
     transform: CSS.Translate.toString(transform),
     transition,
-    opacity: isDragging ? 0.35 : 1,
+    opacity: isDragging ? 0.4 : 1,
   }
 
   return (
@@ -100,7 +101,7 @@ export default function TaskCard({ card, member, onOpen, onToggleDone }) {
       {...attributes}
       {...listeners}
       onClick={() => onOpen(card.id)}
-      className="touch-none cursor-grab active:cursor-grabbing"
+      className="touch-none cursor-grab active:cursor-grabbing rounded-lg"
     >
       <CardFace card={card} member={member} onToggleDone={onToggleDone} />
     </div>

@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { CardFace } from './TaskCard'
-import { Icon, EmptyState, Button } from './ui'
+import { Icon, EmptyState, Button, SectionTitle, ClickableRow } from './ui'
 import { useStore } from '../store'
 import { formatDue } from '../lib/utils'
 
@@ -25,42 +25,48 @@ export default function Inbox({ onOpenCard, reminders }) {
     .filter((n) => n.card)
 
   return (
-    <div className="px-4 sm:px-6 pb-8 max-w-3xl mx-auto w-full">
+    <div className="px-4 sm:px-6 max-w-3xl mx-auto w-full">
       <div className="mb-5">
-        <h1 className="text-2xl font-bold tracking-tight">Inbox</h1>
-        <p className="text-sm text-white/50 mt-0.5">Reminders that fired, and what is on your plate.</p>
+        <h1 className="text-xl font-semibold text-ink tracking-tight">Inbox</h1>
+        <p className="text-sm text-ink-3 mt-0.5">Reminders that fired, and what is on your plate.</p>
       </div>
 
       {permission !== 'granted' && permission !== 'unsupported' && (
-        <div className="mb-6 rounded-2xl glass-soft p-4 flex items-start gap-3">
-          <Icon name="bell" className="w-5 h-5 mt-0.5 text-amber-300 shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-semibold">Turn on desktop reminders</p>
-            <p className="text-xs text-white/55 mt-0.5">
-              Allow notifications and deadlines will reach you even when this tab is in the background.
+        <div className="mb-6 rounded-xl border border-line bg-surface p-4 flex items-start gap-3">
+          <span className="grid place-items-center w-8 h-8 rounded-full bg-primary-soft text-primary shrink-0">
+            <Icon name="bell" className="w-4 h-4" />
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-ink">Turn on desktop reminders</p>
+            <p className="text-sm text-ink-3 mt-0.5">
+              Allow notifications and deadlines reach you even when this tab is in the background.
             </p>
           </div>
-          <Button variant="ghost" onClick={askPermission} className="shrink-0">
+          <Button variant="secondary" onClick={askPermission} className="shrink-0">
             Allow
           </Button>
         </div>
       )}
 
       <section className="mb-8">
-        <header className="flex items-center gap-2 mb-3">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-white/60">Reminders</h2>
-          <span className="text-xs text-white/35">{notes.length}</span>
-          {notes.length > 0 && (
-            <button
-              onClick={() => dispatch({ type: 'clearNotifications' })}
-              className="ml-auto text-xs text-white/45 hover:text-white transition"
-            >
-              Clear all
-            </button>
-          )}
-        </header>
+        <SectionTitle
+          count={notes.length}
+          action={
+            notes.length > 0 && (
+              <button
+                onClick={() => dispatch({ type: 'clearNotifications' })}
+                className="text-sm text-ink-2 hover:text-primary transition"
+              >
+                Clear all
+              </button>
+            )
+          }
+        >
+          Reminders
+        </SectionTitle>
+
         {notes.length === 0 ? (
-          <p className="text-sm text-white/40 rounded-2xl glass-soft px-4 py-6 text-center">
+          <p className="rounded-xl border border-dashed border-line-strong text-sm text-ink-3 px-4 py-6 text-center">
             No reminders have fired yet.
           </p>
         ) : (
@@ -69,14 +75,16 @@ export default function Inbox({ onOpenCard, reminders }) {
               <button
                 key={n.id}
                 onClick={() => onOpenCard(n.card.id)}
-                className="w-full text-left rounded-2xl glass-soft px-4 py-3 hover:bg-white/14 transition flex items-start gap-3"
+                className="w-full text-left rounded-lg border border-line bg-surface px-4 py-3 shadow-xs hover:border-line-strong hover:shadow-sm transition flex items-start gap-3"
               >
-                <Icon name="bell" className="w-4 h-4 mt-0.5 text-amber-300 shrink-0" />
+                <span className="mt-0.5 grid place-items-center w-7 h-7 rounded-full bg-warning-soft text-warning shrink-0">
+                  <Icon name="bell" className="w-3.5 h-3.5" />
+                </span>
                 <div className="min-w-0">
-                  <p className="text-sm truncate">{n.card.title}</p>
-                  <p className="text-xs text-white/45 mt-0.5">
-                    {state.boards.find((b) => b.id === n.card.boardId)?.name} ·{' '}
-                    {n.card.dueDate ? `due ${formatDue(n.card.dueDate)}` : 'no deadline'}
+                  <p className="text-sm font-medium text-ink truncate">{n.card.title}</p>
+                  <p className="text-xs text-ink-3 mt-0.5 truncate">
+                    {state.boards.find((b) => b.id === n.card.boardId)?.name}
+                    {n.card.dueDate ? ` · due ${formatDue(n.card.dueDate)}` : ''}
                   </p>
                 </div>
               </button>
@@ -86,29 +94,23 @@ export default function Inbox({ onOpenCard, reminders }) {
       </section>
 
       <section>
-        <header className="flex items-center gap-2 mb-3">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-white/60">My open cards</h2>
-          <span className="text-xs text-white/35">{mine.length}</span>
-        </header>
+        <SectionTitle count={mine.length}>My open cards</SectionTitle>
         {mine.length === 0 ? (
-          <EmptyState icon="check" title="Nothing assigned to you" hint="Enjoy the quiet." />
+          <EmptyState icon="check" title="Nothing assigned to you" hint="You are all caught up." />
         ) : (
           <div className="space-y-2">
             {mine.map((card) => {
               const board = state.boards.find((b) => b.id === card.boardId)
               return (
-                <button
-                  key={card.id}
-                  onClick={() => onOpenCard(card.id)}
-                  className="block w-full text-left"
-                >
+                <ClickableRow key={card.id} onClick={() => onOpenCard(card.id)}>
                   <CardFace
                     card={card}
                     member={board?.members.find((m) => m.id === card.assigneeId) ?? null}
                     onToggleDone={(id) => dispatch({ type: 'toggleDone', id })}
                     compact
+                    meta={board?.name}
                   />
-                </button>
+                </ClickableRow>
               )
             })}
           </div>

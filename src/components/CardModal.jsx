@@ -23,11 +23,12 @@ export default function CardModal({ cardId, onClose }) {
   if (!card || !board) return null
 
   const patch = (p) => dispatch({ type: 'updateCard', id: card.id, patch: p })
-  const state_ = dueState(card.dueDate, card.done)
+  const due = dueState(card.dueDate, card.done)
+  const list = board.lists.find((l) => l.id === card.listId)
 
   return (
-    <Modal open onClose={onClose} title={board.name} wide>
-      <div className="grid gap-5 sm:grid-cols-[1fr_260px]">
+    <Modal open onClose={onClose} title="Card details" subtitle={`${board.name} · ${list?.title ?? ''}`} wide>
+      <div className="grid gap-6 sm:grid-cols-[1fr_240px]">
         <div className="space-y-5">
           <div>
             <textarea
@@ -39,24 +40,19 @@ export default function CardModal({ cardId, onClose }) {
                 if (value && value !== card.title) patch({ title: value })
                 else if (!value) setDraft({ ...draft, title: card.title })
               }}
-              className="w-full resize-none bg-transparent text-xl font-semibold outline-none rounded-xl px-2 -mx-2 py-1 focus:bg-white/8"
+              className="w-full resize-none rounded-lg border border-transparent hover:border-line px-2 -mx-2 py-1 text-lg font-semibold text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             />
-            <div className="flex flex-wrap items-center gap-2 mt-1 px-0.5">
-              <button
-                onClick={() => dispatch({ type: 'toggleDone', id: card.id })}
-                className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition ${
-                  card.done
-                    ? 'bg-emerald-500/20 border-emerald-400/30 text-emerald-200'
-                    : 'bg-white/8 border-white/12 text-white/70 hover:bg-white/14'
-                }`}
-              >
-                <Icon name="check" className="w-3.5 h-3.5" />
-                {card.done ? 'Completed' : 'Mark complete'}
-              </button>
-              <span className="text-xs text-white/40">
-                in {board.lists.find((l) => l.id === card.listId)?.title ?? 'list'}
-              </span>
-            </div>
+            <button
+              onClick={() => dispatch({ type: 'toggleDone', id: card.id })}
+              className={`mt-1 inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
+                card.done
+                  ? 'bg-success-soft border-emerald-200 text-success'
+                  : 'bg-surface border-line-strong text-ink-2 hover:bg-muted'
+              }`}
+            >
+              <Icon name="check" className="w-3.5 h-3.5" />
+              {card.done ? 'Completed' : 'Mark complete'}
+            </button>
           </div>
 
           <Field label="Description">
@@ -65,7 +61,7 @@ export default function CardModal({ cardId, onClose }) {
               value={draft?.description ?? ''}
               onChange={(e) => setDraft({ ...draft, description: e.target.value })}
               onBlur={() => patch({ description: draft?.description ?? '' })}
-              placeholder="Add more detail, links, or acceptance criteria..."
+              placeholder="Add detail, links or what done looks like…"
               className={`${inputClass} resize-y`}
             />
           </Field>
@@ -78,7 +74,7 @@ export default function CardModal({ cardId, onClose }) {
                 onChange={(e) =>
                   patch({ dueDate: e.target.value ? new Date(e.target.value).toISOString() : null })
                 }
-                className={`${inputClass} [color-scheme:dark]`}
+                className={inputClass}
               />
             </Field>
 
@@ -90,7 +86,7 @@ export default function CardModal({ cardId, onClose }) {
                 disabled={!card.dueDate}
               >
                 {REMINDERS.map((r) => (
-                  <option key={r.value} value={r.value} className="bg-ink-800">
+                  <option key={r.value} value={r.value}>
                     {r.label}
                   </option>
                 ))}
@@ -98,46 +94,49 @@ export default function CardModal({ cardId, onClose }) {
             </Field>
           </div>
 
-          {card.dueDate && (
+          {card.dueDate ? (
             <p
-              className={`text-xs ${
-                state_ === 'overdue' ? 'text-rose-300' : state_ === 'soon' ? 'text-amber-300' : 'text-white/50'
+              className={`flex items-center gap-1.5 text-xs ${
+                due === 'overdue' ? 'text-danger' : due === 'soon' ? 'text-warning' : 'text-ink-3'
               }`}
             >
-              <Icon name="bell" className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />
-              {state_ === 'overdue'
+              <Icon name="bell" className="w-3.5 h-3.5" />
+              {due === 'overdue'
                 ? `Overdue since ${formatDue(card.dueDate)}`
-                : `Due ${formatDue(card.dueDate)} · reminder ${
-                    REMINDERS.find((r) => r.value === (card.remindBefore ?? 60))?.label.toLowerCase() ??
-                    'set'
-                  }`}
+                : `Due ${formatDue(card.dueDate)} · reminder ${(
+                    REMINDERS.find((r) => r.value === (card.remindBefore ?? 60))?.label ?? ''
+                  ).toLowerCase()}`}
             </p>
+          ) : (
+            <p className="text-xs text-ink-3">Set a deadline to get a reminder for this card.</p>
           )}
         </div>
 
         <div className="space-y-5">
           <Field label="Assigned to">
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               <button
                 onClick={() => patch({ assigneeId: null })}
-                className={`w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition ${
-                  !card.assigneeId ? 'bg-white/14 ring-1 ring-white/20' : 'hover:bg-white/8'
+                className={`w-full flex items-center gap-2.5 rounded-lg border px-2.5 py-2 text-sm transition ${
+                  !card.assigneeId ? 'border-primary bg-primary-soft' : 'border-transparent hover:bg-muted'
                 }`}
               >
                 <Avatar user={null} size={26} />
-                <span className="text-white/60">Unassigned</span>
+                <span className="text-ink-2">Unassigned</span>
               </button>
               {board.members.map((m) => (
                 <button
                   key={m.id}
                   onClick={() => patch({ assigneeId: m.id })}
-                  className={`w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition ${
-                    card.assigneeId === m.id ? 'bg-white/14 ring-1 ring-white/20' : 'hover:bg-white/8'
+                  className={`w-full flex items-center gap-2.5 rounded-lg border px-2.5 py-2 text-sm transition ${
+                    card.assigneeId === m.id
+                      ? 'border-primary bg-primary-soft'
+                      : 'border-transparent hover:bg-muted'
                   }`}
                 >
                   <Avatar user={m} size={26} />
-                  <span className="truncate">{m.name}</span>
-                  {state.user?.id === m.id && <span className="ml-auto text-[10px] text-white/40">you</span>}
+                  <span className="truncate text-ink">{m.name}</span>
+                  {state.user?.id === m.id && <span className="ml-auto text-xs text-ink-3">you</span>}
                 </button>
               ))}
             </div>
@@ -152,7 +151,7 @@ export default function CardModal({ cardId, onClose }) {
               className={inputClass}
             >
               {board.lists.map((l) => (
-                <option key={l.id} value={l.id} className="bg-ink-800">
+                <option key={l.id} value={l.id}>
                   {l.title}
                 </option>
               ))}
@@ -165,8 +164,8 @@ export default function CardModal({ cardId, onClose }) {
                 <button
                   key={key}
                   onClick={() => patch({ priority: key })}
-                  className={`flex-1 rounded-xl border px-2 py-2 text-xs font-semibold transition ${
-                    card.priority === key ? p.chip : 'border-white/10 bg-white/5 text-white/55 hover:bg-white/10'
+                  className={`flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition ${
+                    card.priority === key ? p.chip : 'border-line-strong bg-surface text-ink-2 hover:bg-muted'
                   }`}
                 >
                   {p.label}
@@ -179,8 +178,10 @@ export default function CardModal({ cardId, onClose }) {
             variant="danger"
             className="w-full"
             onClick={() => {
-              dispatch({ type: 'deleteCard', id: card.id })
-              onClose()
+              if (window.confirm('Delete this card?')) {
+                dispatch({ type: 'deleteCard', id: card.id })
+                onClose()
+              }
             }}
           >
             <Icon name="trash" className="w-4 h-4" />

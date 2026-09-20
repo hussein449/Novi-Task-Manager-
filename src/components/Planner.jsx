@@ -1,8 +1,14 @@
 import { useMemo, useState } from 'react'
 import { CardFace } from './TaskCard'
-import { Icon, EmptyState } from './ui'
+import { Icon, EmptyState, inputClass, ClickableRow } from './ui'
 import { useStore } from '../store'
 import { BUCKETS, bucketFor } from '../lib/utils'
+
+const SCOPES = [
+  { key: 'mine', label: 'Assigned to me' },
+  { key: 'open', label: 'Open' },
+  { key: 'all', label: 'Everything' },
+]
 
 export default function Planner({ onOpenCard, query }) {
   const { state, dispatch } = useStore()
@@ -29,27 +35,21 @@ export default function Planner({ onOpenCard, query }) {
     return map
   }, [rows])
 
-  const scopes = [
-    { key: 'mine', label: 'Assigned to me' },
-    { key: 'open', label: 'Open' },
-    { key: 'all', label: 'Everything' },
-  ]
-
   return (
-    <div className="px-4 sm:px-6 pb-8 max-w-4xl mx-auto w-full">
+    <div className="px-4 sm:px-6 max-w-3xl mx-auto w-full">
       <div className="mb-5">
-        <h1 className="text-2xl font-bold tracking-tight">Planner</h1>
-        <p className="text-sm text-white/50 mt-0.5">Every deadline across your boards, in order.</p>
+        <h1 className="text-xl font-semibold text-ink tracking-tight">Planner</h1>
+        <p className="text-sm text-ink-3 mt-0.5">Every deadline across your boards, in order.</p>
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-6">
-        <div className="flex rounded-xl glass-soft p-1">
-          {scopes.map((s) => (
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        <div className="inline-flex rounded-lg border border-line-strong bg-surface p-0.5">
+          {SCOPES.map((s) => (
             <button
               key={s.key}
               onClick={() => setScope(s.key)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                scope === s.key ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
+                scope === s.key ? 'bg-primary-soft text-primary' : 'text-ink-2 hover:text-ink'
               }`}
             >
               {s.label}
@@ -59,11 +59,11 @@ export default function Planner({ onOpenCard, query }) {
         <select
           value={boardFilter}
           onChange={(e) => setBoardFilter(e.target.value)}
-          className="rounded-xl glass-soft px-3 py-2 text-xs font-semibold text-white/80 outline-none"
+          className={`${inputClass} w-auto py-1.5`}
         >
-          <option value="all" className="bg-ink-800">All boards</option>
+          <option value="all">All boards</option>
           {state.boards.map((b) => (
-            <option key={b.id} value={b.id} className="bg-ink-800">
+            <option key={b.id} value={b.id}>
               {b.name}
             </option>
           ))}
@@ -74,7 +74,7 @@ export default function Planner({ onOpenCard, query }) {
         <EmptyState
           icon="planner"
           title="Nothing scheduled here"
-          hint="Add a deadline to a card and it shows up in this timeline."
+          hint="Give a card a deadline and it appears in this timeline."
         />
       ) : (
         <div className="space-y-7">
@@ -85,26 +85,24 @@ export default function Planner({ onOpenCard, query }) {
               <section key={bucket.key}>
                 <header className="flex items-center gap-2 mb-2.5">
                   <Icon name="clock" className={`w-4 h-4 ${bucket.tone}`} />
-                  <h2 className={`text-sm font-bold uppercase tracking-wider ${bucket.tone}`}>
-                    {bucket.label}
-                  </h2>
-                  <span className="text-xs text-white/35">{items.length}</span>
+                  <h2 className={`text-sm font-semibold ${bucket.tone}`}>{bucket.label}</h2>
+                  <span className="text-xs font-medium text-ink-3 bg-muted rounded-full px-2 py-0.5">
+                    {items.length}
+                  </span>
                 </header>
                 <div className="space-y-2">
                   {items.map((card) => {
                     const board = state.boards.find((b) => b.id === card.boardId)
                     return (
-                      <div key={card.id}>
-                        <button onClick={() => onOpenCard(card.id)} className="block w-full text-left">
-                          <CardFace
-                            card={card}
-                            member={board?.members.find((m) => m.id === card.assigneeId) ?? null}
-                            onToggleDone={(id) => dispatch({ type: 'toggleDone', id })}
-                            compact
-                          />
-                        </button>
-                        <p className="mt-1 ml-3 text-[11px] text-white/35">{board?.name}</p>
-                      </div>
+                      <ClickableRow key={card.id} onClick={() => onOpenCard(card.id)}>
+                        <CardFace
+                          card={card}
+                          member={board?.members.find((m) => m.id === card.assigneeId) ?? null}
+                          onToggleDone={(id) => dispatch({ type: 'toggleDone', id })}
+                          compact
+                          meta={board?.name}
+                        />
+                      </ClickableRow>
                     )
                   })}
                 </div>

@@ -3,7 +3,23 @@ import { uid, colorForName, decodePayload } from './lib/utils'
 
 const STORAGE_KEY = 'novi.task-manager.v1'
 
-export const SCENES = ['night', 'sunset', 'forest', 'violet', 'ember', 'slate']
+export const ACCENTS = ['blue', 'teal', 'violet', 'amber', 'rose', 'slate']
+
+// Boards created before the redesign carry a scene name; map those to an accent.
+const LEGACY_ACCENTS = {
+  night: 'blue',
+  sunset: 'rose',
+  forest: 'teal',
+  violet: 'violet',
+  ember: 'amber',
+  slate: 'slate',
+}
+
+export const accentOf = (board) => {
+  const value = board?.accent ?? board?.scene
+  if (ACCENTS.includes(value)) return value
+  return LEGACY_ACCENTS[value] ?? 'blue'
+}
 
 export const DEFAULT_LISTS = () => [
   { id: uid('list'), title: 'To Do' },
@@ -12,9 +28,9 @@ export const DEFAULT_LISTS = () => [
 ]
 
 export const PRIORITIES = {
-  low: { label: 'Low', chip: 'bg-sky-400/15 text-sky-200 border-sky-300/25' },
-  medium: { label: 'Medium', chip: 'bg-amber-400/15 text-amber-200 border-amber-300/25' },
-  high: { label: 'High', chip: 'bg-rose-500/15 text-rose-200 border-rose-400/25' },
+  low: { label: 'Low', chip: 'bg-slate-50 text-slate-600 border-slate-200' },
+  medium: { label: 'Medium', chip: 'bg-warning-soft text-warning border-amber-200' },
+  high: { label: 'High', chip: 'bg-danger-soft text-danger border-red-200' },
 }
 
 /* ---------------- seed ---------------- */
@@ -39,7 +55,7 @@ function seed() {
         id: boardId,
         folderId,
         name: 'Teka and Fontain tasks',
-        scene: 'night',
+        accent: 'blue',
         lists,
         members: [owner, ali],
         createdAt: Date.now(),
@@ -149,7 +165,7 @@ function reducer(state, action) {
         id: uid('board'),
         folderId: action.folderId ?? state.folders[0]?.id ?? null,
         name: action.name,
-        scene: action.scene ?? 'night',
+        accent: action.accent ?? 'blue',
         lists: DEFAULT_LISTS(),
         members: state.user ? [state.user] : [],
         createdAt: Date.now(),

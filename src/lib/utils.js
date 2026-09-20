@@ -76,12 +76,12 @@ export const bucketFor = (iso) => {
 }
 
 export const BUCKETS = [
-  { key: 'overdue', label: 'Overdue', tone: 'text-rose-300' },
-  { key: 'today', label: 'Today', tone: 'text-amber-300' },
-  { key: 'tomorrow', label: 'Tomorrow', tone: 'text-sky-300' },
-  { key: 'week', label: 'This week', tone: 'text-emerald-300' },
-  { key: 'later', label: 'Later', tone: 'text-white/70' },
-  { key: 'nodate', label: 'No due date', tone: 'text-white/50' },
+  { key: 'overdue', label: 'Overdue', tone: 'text-danger' },
+  { key: 'today', label: 'Today', tone: 'text-warning' },
+  { key: 'tomorrow', label: 'Tomorrow', tone: 'text-ink' },
+  { key: 'week', label: 'This week', tone: 'text-ink' },
+  { key: 'later', label: 'Later', tone: 'text-ink-2' },
+  { key: 'nodate', label: 'No deadline', tone: 'text-ink-3' },
 ]
 
 /* ---------- invite links (UTF-8 safe base64) ---------- */

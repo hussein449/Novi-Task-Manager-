@@ -104,45 +104,44 @@ export default function Board({ board, onOpenCard, query }) {
       onDragCancel={() => setActiveId(null)}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-3 sm:gap-4 items-start overflow-x-auto thin-scroll px-4 sm:px-6 pb-4 snap-x snap-mandatory sm:snap-none">
+      <div className="flex gap-3 items-start overflow-x-auto thin-scroll px-4 sm:px-6 pb-4 snap-x snap-mandatory sm:snap-none">
         {board.lists.map((list) => (
           <div key={list.id} className="snap-center">
             <List board={board} list={list} cards={byList[list.id] ?? []} onOpenCard={onOpenCard} />
           </div>
         ))}
 
-        <div className="shrink-0 w-[85vw] xs:w-[78vw] sm:w-[320px] max-w-[340px] snap-center">
+        <div className="shrink-0 w-[82vw] xs:w-[300px] sm:w-[312px] snap-center">
           {addingList ? (
-            <form onSubmit={submitList} className="rounded-3xl glass p-3">
+            <form onSubmit={submitList} className="rounded-xl border border-line bg-muted p-3">
               <input
                 autoFocus
                 value={listTitle}
                 onChange={(e) => setListTitle(e.target.value)}
                 onKeyDown={(e) => e.key === 'Escape' && setAddingList(false)}
                 placeholder="List name"
-                className="w-full rounded-xl bg-white/10 border border-white/15 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500/40"
+                className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               />
               <div className="flex gap-2 mt-2">
                 <button
                   type="submit"
-                  className="rounded-xl bg-brand-500 hover:bg-brand-600 px-3.5 py-2 text-sm font-semibold"
+                  className="rounded-lg bg-primary hover:bg-primary-dark text-white px-3 py-1.5 text-sm font-medium transition"
                 >
                   Add list
                 </button>
                 <button
                   type="button"
                   onClick={() => setAddingList(false)}
-                  className="p-2 rounded-xl text-white/60 hover:bg-white/10"
-                  aria-label="Cancel"
+                  className="rounded-lg px-2.5 py-1.5 text-sm text-ink-2 hover:bg-line/70 transition"
                 >
-                  <Icon name="x" className="w-4 h-4" />
+                  Cancel
                 </button>
               </div>
             </form>
           ) : (
             <button
               onClick={() => setAddingList(true)}
-              className="w-full flex items-center gap-2 rounded-3xl glass-soft px-4 py-3.5 text-sm font-semibold text-white/85 hover:bg-white/15 transition"
+              className="w-full flex items-center gap-2 rounded-xl border border-dashed border-line-strong bg-surface/60 px-4 py-3 text-sm font-medium text-ink-2 hover:bg-surface hover:text-ink transition"
             >
               <Icon name="plus" className="w-4 h-4" />
               Add another list
@@ -153,7 +152,7 @@ export default function Board({ board, onOpenCard, query }) {
 
       <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}>
         {activeCard ? (
-          <div className="w-[85vw] sm:w-[300px] dragging-card">
+          <div className="w-[82vw] xs:w-[292px] cursor-grabbing">
             <CardFace
               card={activeCard}
               member={board.members.find((m) => m.id === activeCard.assigneeId) ?? null}

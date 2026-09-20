@@ -1,23 +1,23 @@
 import { useState } from 'react'
 import { Icon, Button, AvatarStack, Modal, Field, inputClass, EmptyState } from './ui'
-import { useStore, SCENES, cardsOfBoard } from '../store'
+import { useStore, ACCENTS, accentOf, cardsOfBoard } from '../store'
 
-const EMOJIS = ['\u{1F4BC}', '\u{1F3AF}', '\u{1F680}', '\u{1F3A8}', '\u{1F4C8}', '\u{1F9E9}', '\u{1F3E0}', '\u{1F4C1}']
+const EMOJIS = ['💼', '🎯', '🚀', '🎨', '📈', '🧩', '🏠', '📁']
 
 function NewBoardModal({ folderId, onClose }) {
   const { dispatch } = useStore()
   const [name, setName] = useState('')
-  const [scene, setScene] = useState('night')
+  const [accent, setAccent] = useState('blue')
 
   const submit = (e) => {
     e.preventDefault()
     if (!name.trim()) return
-    dispatch({ type: 'addBoard', name: name.trim(), folderId, scene })
-    onClose('opened')
+    dispatch({ type: 'addBoard', name: name.trim(), folderId, accent })
+    onClose('created')
   }
 
   return (
-    <Modal open onClose={onClose} title="New board">
+    <Modal open onClose={onClose} title="New board" subtitle="Boards start with To Do, Doing and Done.">
       <form onSubmit={submit}>
         <Field label="Board name" hint="One board per client or project works well.">
           <input
@@ -30,26 +30,24 @@ function NewBoardModal({ folderId, onClose }) {
         </Field>
 
         <div className="mt-5">
-          <span className="block text-xs font-semibold uppercase tracking-wider text-white/55 mb-2">
-            Background
-          </span>
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-            {SCENES.map((s) => (
+          <span className="block text-sm font-medium text-ink-2 mb-2">Colour</span>
+          <div className="flex gap-2">
+            {ACCENTS.map((a) => (
               <button
                 type="button"
-                key={s}
-                onClick={() => setScene(s)}
-                className={`h-14 rounded-xl scene-${s} border-2 transition ${
-                  scene === s ? 'border-white ring-2 ring-brand-500/40' : 'border-white/10 hover:border-white/30'
+                key={a}
+                onClick={() => setAccent(a)}
+                className={`w-8 h-8 rounded-full accent-${a} transition ${
+                  accent === a ? 'ring-2 ring-offset-2 ring-ink-3' : 'hover:scale-105'
                 }`}
-                aria-label={s}
+                aria-label={`${a} colour`}
               />
             ))}
           </div>
         </div>
 
         <div className="flex gap-2 mt-6">
-          <Button type="submit" disabled={!name.trim()} className="flex-1">
+          <Button type="submit" disabled={!name.trim()}>
             Create board
           </Button>
           <Button type="button" variant="ghost" onClick={onClose}>
@@ -86,15 +84,15 @@ function NewFolderModal({ onClose }) {
           />
         </Field>
         <div className="mt-5">
-          <span className="block text-xs font-semibold uppercase tracking-wider text-white/55 mb-2">Icon</span>
+          <span className="block text-sm font-medium text-ink-2 mb-2">Icon</span>
           <div className="flex flex-wrap gap-2">
             {EMOJIS.map((e) => (
               <button
                 type="button"
                 key={e}
                 onClick={() => setEmoji(e)}
-                className={`w-11 h-11 rounded-xl text-xl transition ${
-                  emoji === e ? 'bg-white/20 ring-2 ring-brand-500/50' : 'bg-white/6 hover:bg-white/12'
+                className={`w-10 h-10 rounded-lg border text-lg transition ${
+                  emoji === e ? 'border-primary bg-primary-soft' : 'border-line hover:bg-muted'
                 }`}
               >
                 {e}
@@ -103,7 +101,7 @@ function NewFolderModal({ onClose }) {
           </div>
         </div>
         <div className="flex gap-2 mt-6">
-          <Button type="submit" disabled={!name.trim()} className="flex-1">
+          <Button type="submit" disabled={!name.trim()}>
             Create folder
           </Button>
           <Button type="button" variant="ghost" onClick={onClose}>
@@ -125,38 +123,38 @@ function BoardCard({ board, onOpen }) {
   ).length
 
   return (
-    <div className="group relative rounded-2xl overflow-hidden border border-white/10 hover:border-white/25 transition shadow-lg">
-      <button onClick={() => onOpen(board.id)} className="block w-full text-left">
-        <div className={`h-20 scene-${board.scene ?? 'night'}`} />
-        <div className="glass p-4 border-0">
-          <p className="font-semibold truncate">{board.name}</p>
-          <div className="mt-2 flex items-center gap-2 text-xs text-white/55">
-            <span>{cards.length} cards</span>
-            <span>·</span>
-            <span>{done} done</span>
-            {overdue > 0 && (
-              <span className="ml-auto text-rose-300 font-semibold">{overdue} overdue</span>
-            )}
-          </div>
-          <div className="mt-3 h-1.5 rounded-full bg-white/10 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-brand-500 to-emerald-400 transition-all"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-          <div className="mt-3 flex items-center justify-between">
-            <AvatarStack members={board.members} size={26} />
-          </div>
+    <div className="group relative rounded-xl border border-line bg-surface shadow-xs hover:shadow-md hover:border-line-strong transition overflow-hidden">
+      <span className={`block h-1 accent-${accentOf(board)}`} />
+      <button onClick={() => onOpen(board.id)} className="block w-full text-left p-4">
+        <p className="font-semibold text-ink truncate pr-7">{board.name}</p>
+
+        <div className="mt-1.5 flex items-center gap-2 text-xs text-ink-3">
+          <span>
+            {done}/{cards.length} done
+          </span>
+          {overdue > 0 && (
+            <span className="rounded-md bg-danger-soft text-danger px-1.5 py-0.5 font-medium">
+              {overdue} overdue
+            </span>
+          )}
+        </div>
+
+        <div className="mt-3 h-1.5 rounded-full bg-muted overflow-hidden">
+          <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+        </div>
+
+        <div className="mt-3">
+          <AvatarStack members={board.members} size={24} />
         </div>
       </button>
       <button
         onClick={() => {
-          if (window.confirm(`Delete the board “${board.name}” and all of its cards?`)) {
+          if (window.confirm(`Delete the board "${board.name}" and all of its cards?`)) {
             dispatch({ type: 'deleteBoard', id: board.id })
           }
         }}
-        className="absolute top-2 right-2 p-2 rounded-xl bg-black/40 text-white/70 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-rose-300 transition"
-        aria-label="Delete board"
+        className="absolute top-3 right-2 p-1.5 rounded-md text-ink-3 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-danger hover:bg-danger-soft transition"
+        aria-label={`Delete ${board.name}`}
       >
         <Icon name="trash" className="w-4 h-4" />
       </button>
@@ -170,23 +168,21 @@ export default function BoardsView({ onOpenBoard }) {
   const [newFolder, setNewFolder] = useState(false)
 
   const closeBoardModal = (reason) => {
-    const folder = newBoardFolder
     setNewBoardFolder(null)
-    if (reason === 'opened') onOpenBoard(null, true)
-    void folder
+    if (reason === 'created') onOpenBoard(null)
   }
 
   return (
-    <div className="px-4 sm:px-6 pb-8 max-w-6xl mx-auto w-full">
-      <div className="flex items-center justify-between gap-3 mb-5">
+    <div className="px-4 sm:px-6 max-w-6xl mx-auto w-full">
+      <div className="flex items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Your workspace</h1>
-          <p className="text-sm text-white/50 mt-0.5">
+          <h1 className="text-xl font-semibold text-ink tracking-tight">Projects</h1>
+          <p className="text-sm text-ink-3 mt-0.5">
             {state.folders.length} {state.folders.length === 1 ? 'folder' : 'folders'} ·{' '}
             {state.boards.length} {state.boards.length === 1 ? 'board' : 'boards'}
           </p>
         </div>
-        <Button variant="ghost" onClick={() => setNewFolder(true)}>
+        <Button variant="secondary" onClick={() => setNewFolder(true)}>
           <Icon name="folder" className="w-4 h-4" />
           <span className="hidden xs:inline">New folder</span>
         </Button>
@@ -206,29 +202,33 @@ export default function BoardsView({ onOpenBoard }) {
           const boards = state.boards.filter((b) => b.folderId === folder.id)
           return (
             <section key={folder.id}>
-              <header className="flex items-center gap-2.5 mb-3">
-                <span className="text-xl">{folder.emoji}</span>
-                <h2 className="font-semibold text-lg">{folder.name}</h2>
-                <span className="text-xs text-white/40">{boards.length}</span>
+              <header className="flex items-center gap-2 mb-3">
+                <span aria-hidden="true">{folder.emoji}</span>
+                <h2 className="font-semibold text-ink">{folder.name}</h2>
+                <span className="text-xs font-medium text-ink-3 bg-muted rounded-full px-2 py-0.5">
+                  {boards.length}
+                </span>
                 <div className="ml-auto flex items-center gap-1">
                   <button
                     onClick={() => {
-                      const name = window.prompt('Rename folder', folder.name)
-                      if (name?.trim()) dispatch({ type: 'renameFolder', id: folder.id, name: name.trim() })
+                      const value = window.prompt('Rename folder', folder.name)
+                      if (value?.trim()) dispatch({ type: 'renameFolder', id: folder.id, name: value.trim() })
                     }}
-                    className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition"
-                    aria-label="Rename folder"
+                    className="p-1.5 rounded-md text-ink-3 hover:text-ink hover:bg-muted transition"
+                    aria-label={`Rename ${folder.name}`}
+                    title="Rename folder"
                   >
-                    <Icon name="dots" className="w-4 h-4" />
+                    <Icon name="pencil" className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => {
-                      if (window.confirm(`Delete “${folder.name}” with its ${boards.length} board(s)?`)) {
+                      if (window.confirm(`Delete "${folder.name}" and its ${boards.length} board(s)?`)) {
                         dispatch({ type: 'deleteFolder', id: folder.id })
                       }
                     }}
-                    className="p-2 rounded-lg text-white/40 hover:text-rose-300 hover:bg-rose-500/10 transition"
-                    aria-label="Delete folder"
+                    className="p-1.5 rounded-md text-ink-3 hover:text-danger hover:bg-danger-soft transition"
+                    aria-label={`Delete ${folder.name}`}
+                    title="Delete folder"
                   >
                     <Icon name="trash" className="w-4 h-4" />
                   </button>
@@ -241,10 +241,10 @@ export default function BoardsView({ onOpenBoard }) {
                 ))}
                 <button
                   onClick={() => setNewBoardFolder(folder.id)}
-                  className="rounded-2xl glass-soft min-h-[150px] flex flex-col items-center justify-center gap-2 text-white/70 hover:text-white hover:bg-white/14 transition"
+                  className="rounded-xl border border-dashed border-line-strong min-h-[132px] flex flex-col items-center justify-center gap-1.5 text-ink-2 hover:border-primary hover:text-primary hover:bg-primary-soft/40 transition"
                 >
                   <Icon name="plus" className="w-5 h-5" />
-                  <span className="text-sm font-semibold">Create board</span>
+                  <span className="text-sm font-medium">New board</span>
                 </button>
               </div>
             </section>

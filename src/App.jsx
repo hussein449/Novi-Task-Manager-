@@ -9,7 +9,7 @@ import Inbox from './components/Inbox'
 import Overview from './components/Overview'
 import CardModal from './components/CardModal'
 import InviteModal from './components/InviteModal'
-import { TopBar, BottomNav, Toasts, Sidebar } from './components/Chrome'
+import { TopBar, BottomNav, Toasts, Sidebar, MobileMenu } from './components/Chrome'
 import { EmptyState, Button, Icon } from './components/ui'
 
 export default function App() {
@@ -17,6 +17,7 @@ export default function App() {
   const [view, setView] = useState('board')
   const [openCardId, setOpenCardId] = useState(null)
   const [inviting, setInviting] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [query, setQuery] = useState('')
   const reminders = useReminders()
 
@@ -27,89 +28,71 @@ export default function App() {
     if (view === 'inbox' && unread > 0) dispatch({ type: 'readNotifications' })
   }, [view, unread, dispatch])
 
-  useEffect(() => {
-    document.documentElement.dataset.scene = board?.scene ?? 'night'
-  }, [board?.scene])
-
-  const openBoard = (id, keepView = false) => {
+  const openBoard = (id) => {
     if (id) dispatch({ type: 'setActiveBoard', id })
-    if (!keepView) setView('board')
-    else setView('board')
+    setView('board')
     setQuery('')
   }
 
   const openCard = (id) => setOpenCardId(id)
 
-  if (!state.user) {
-    return (
-      <>
-        <div className="bg-scene scene-night" />
-        <Login />
-      </>
-    )
+  if (!state.user) return <Login />
+
+  const sidebarProps = {
+    activeBoardId: board?.id,
+    onOpenBoard: openBoard,
+    view,
+    onChangeView: setView,
   }
 
   return (
-    <>
-      <div className={`bg-scene scene-${board?.scene ?? 'night'}`} />
+    <div className="flex min-h-dvh">
+      <Sidebar {...sidebarProps} />
+      <MobileMenu open={menuOpen} onClose={() => setMenuOpen(false)} {...sidebarProps} />
 
-      <div className="flex min-h-dvh">
-        <Sidebar
-          activeBoardId={board?.id}
-          onOpenBoard={openBoard}
+      <div className="flex-1 min-w-0 flex flex-col">
+        <TopBar
+          board={board}
           view={view}
-          onChangeView={(v) => setView(v)}
+          query={query}
+          onSearch={setQuery}
+          onInvite={() => setInviting(true)}
+          unread={unread}
+          onOpenInbox={() => setView('inbox')}
+          onOpenMenu={() => setMenuOpen(true)}
         />
 
-        <div className="flex-1 min-w-0 flex flex-col">
-          <TopBar
-            board={board}
-            view={view}
-            query={query}
-            onSearch={setQuery}
-            onInvite={() => setInviting(true)}
-            unread={unread}
-            onOpenInbox={() => setView('inbox')}
-          />
+        <main className="flex-1 pt-5 pb-24 lg:pb-8">
+          {view === 'board' &&
+            (board ? (
+              <Board board={board} onOpenCard={openCard} query={query} />
+            ) : (
+              <EmptyState
+                icon="board"
+                title="No board open"
+                hint="Pick a board from your projects, or create a new one."
+                action={
+                  <Button onClick={() => setView('boards')}>
+                    <Icon name="folder" className="w-4 h-4" />
+                    Go to projects
+                  </Button>
+                }
+              />
+            ))}
 
-          <main className="flex-1 pt-4 pb-32">
-            {view === 'board' &&
-              (board ? (
-                <Board board={board} onOpenCard={openCard} query={query} />
-              ) : (
-                <EmptyState
-                  icon="board"
-                  title="No board selected"
-                  hint="Create a board or pick one from your workspace."
-                  action={
-                    <Button onClick={() => setView('boards')}>
-                      <Icon name="switch" className="w-4 h-4" />
-                      Go to boards
-                    </Button>
-                  }
-                />
-              ))}
-
-            {view === 'boards' && <BoardsView onOpenBoard={openBoard} />}
-            {view === 'planner' && <Planner onOpenCard={openCard} query={query} />}
-            {view === 'inbox' && <Inbox onOpenCard={openCard} reminders={reminders} />}
-            {view === 'overview' && <Overview onOpenBoard={openBoard} onOpenCard={openCard} />}
-          </main>
-        </div>
+          {view === 'boards' && <BoardsView onOpenBoard={openBoard} />}
+          {view === 'planner' && <Planner onOpenCard={openCard} query={query} />}
+          {view === 'inbox' && <Inbox onOpenCard={openCard} reminders={reminders} />}
+          {view === 'overview' && <Overview onOpenBoard={openBoard} onOpenCard={openCard} />}
+        </main>
       </div>
 
       <BottomNav view={view} onChange={setView} unread={unread} />
 
-      <Toasts
-        toasts={reminders.toasts}
-        onDismiss={reminders.dismissToast}
-        onOpenCard={(id) => {
-          openCard(id)
-        }}
-      />
+      <Toasts toasts={reminders.toasts} onDismiss={reminders.dismissToast} onOpenCard={openCard} />
 
       {openCardId && <CardModal cardId={openCardId} onClose={() => setOpenCardId(null)} />}
       {inviting && board && <InviteModal board={board} onClose={() => setInviting(false)} />}
-    </>
+    </div>
   )
 }

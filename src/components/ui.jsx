@@ -6,7 +6,7 @@ import { initials } from '../lib/utils'
 const base = {
   fill: 'none',
   stroke: 'currentColor',
-  strokeWidth: 1.8,
+  strokeWidth: 1.7,
   strokeLinecap: 'round',
   strokeLinejoin: 'round',
 }
@@ -22,8 +22,8 @@ export const Icon = ({ name, className = 'w-5 h-5' }) => {
     clock: <><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></>,
     user: <><circle cx="12" cy="8" r="3.5" /><path d="M5 20a7 7 0 0 1 14 0" /></>,
     users: <><circle cx="9" cy="8" r="3.2" /><path d="M3 19a6 6 0 0 1 12 0" /><path d="M16 5.2a3.2 3.2 0 0 1 0 5.6M17.5 19a6 6 0 0 0-2-4.5" /></>,
-    share: <><circle cx="18" cy="5" r="2.5" /><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="19" r="2.5" /><path d="M8.2 10.8l7.6-4.3M8.2 13.2l7.6 4.3" /></>,
-    dots: <><circle cx="5" cy="12" r="1.3" fill="currentColor" /><circle cx="12" cy="12" r="1.3" fill="currentColor" /><circle cx="19" cy="12" r="1.3" fill="currentColor" /></>,
+    share: <><path d="M12 15V4M12 4L8 8M12 4l4 4" /><path d="M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" /></>,
+    dots: <><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" /></>,
     x: <><path d="M6 6l12 12M18 6L6 18" /></>,
     check: <><path d="M5 12.5l4.5 4.5L19 7" /></>,
     trash: <><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13" /></>,
@@ -32,8 +32,9 @@ export const Icon = ({ name, className = 'w-5 h-5' }) => {
     flag: <><path d="M6 21V4M6 4h11l-2 3.5L17 11H6" /></>,
     search: <><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></>,
     logout: <><path d="M14 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-2" /><path d="M10 12h10l-3-3M20 12l-3 3" /></>,
-    grip: <><circle cx="9" cy="6" r="1.2" fill="currentColor" /><circle cx="15" cy="6" r="1.2" fill="currentColor" /><circle cx="9" cy="12" r="1.2" fill="currentColor" /><circle cx="15" cy="12" r="1.2" fill="currentColor" /><circle cx="9" cy="18" r="1.2" fill="currentColor" /><circle cx="15" cy="18" r="1.2" fill="currentColor" /></>,
     copy: <><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h8" /></>,
+    pencil: <><path d="M4 20h4l10-10a2.5 2.5 0 0 0-3.5-3.5L4.5 16.5z" /></>,
+    chevron: <><path d="M9 6l6 6-6 6" /></>,
     sparkle: <><path d="M12 4l1.6 4.4L18 10l-4.4 1.6L12 16l-1.6-4.4L6 10l4.4-1.6z" /></>,
   }
   return (
@@ -45,12 +46,12 @@ export const Icon = ({ name, className = 'w-5 h-5' }) => {
 
 /* ---------------- avatar ---------------- */
 
-export const Avatar = ({ user, size = 32, ring = true, title }) => {
+export const Avatar = ({ user, size = 32, title }) => {
   if (!user) {
     return (
       <span
-        className="inline-flex items-center justify-center rounded-full border border-dashed border-white/30 text-white/50"
-        style={{ width: size, height: size, fontSize: size * 0.38 }}
+        className="inline-flex items-center justify-center rounded-full border border-dashed border-line-strong text-ink-3 bg-white"
+        style={{ width: size, height: size }}
         title={title ?? 'Unassigned'}
       >
         <Icon name="user" className="w-1/2 h-1/2" />
@@ -59,10 +60,8 @@ export const Avatar = ({ user, size = 32, ring = true, title }) => {
   }
   return (
     <span
-      className={`inline-flex items-center justify-center rounded-full font-semibold text-white shadow-sm ${
-        ring ? 'ring-2 ring-white/25' : ''
-      }`}
-      style={{ width: size, height: size, background: user.color, fontSize: size * 0.4 }}
+      className="inline-flex items-center justify-center rounded-full font-semibold text-white ring-2 ring-white"
+      style={{ width: size, height: size, background: user.color, fontSize: size * 0.38 }}
       title={title ?? user.name}
     >
       {initials(user.name)}
@@ -70,15 +69,15 @@ export const Avatar = ({ user, size = 32, ring = true, title }) => {
   )
 }
 
-export const AvatarStack = ({ members = [], max = 3, size = 30 }) => (
-  <div className="flex -space-x-2">
+export const AvatarStack = ({ members = [], max = 3, size = 28 }) => (
+  <div className="flex -space-x-1.5">
     {members.slice(0, max).map((m) => (
       <Avatar key={m.id} user={m} size={size} />
     ))}
     {members.length > max && (
       <span
-        className="inline-flex items-center justify-center rounded-full bg-white/15 text-white/80 ring-2 ring-white/25 font-semibold"
-        style={{ width: size, height: size, fontSize: size * 0.36 }}
+        className="inline-flex items-center justify-center rounded-full bg-muted text-ink-2 ring-2 ring-white font-semibold"
+        style={{ width: size, height: size, fontSize: size * 0.34 }}
       >
         +{members.length - max}
       </span>
@@ -88,7 +87,7 @@ export const AvatarStack = ({ members = [], max = 3, size = 30 }) => (
 
 /* ---------------- modal ---------------- */
 
-export const Modal = ({ open, onClose, children, title, wide = false }) => {
+export const Modal = ({ open, onClose, children, title, subtitle, wide = false }) => {
   useEffect(() => {
     if (!open) return undefined
     const onKey = (e) => e.key === 'Escape' && onClose()
@@ -103,19 +102,24 @@ export const Modal = ({ open, onClose, children, title, wide = false }) => {
   if (!open) return null
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6 bg-black/55 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6 bg-ink/40"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className={`glass w-full ${wide ? 'sm:max-w-3xl' : 'sm:max-w-lg'} rounded-t-3xl sm:rounded-3xl shadow-2xl animate-slide-up max-h-[92vh] overflow-y-auto thin-scroll`}
+        className={`bg-surface w-full ${
+          wide ? 'sm:max-w-3xl' : 'sm:max-w-lg'
+        } rounded-t-2xl sm:rounded-2xl shadow-xl ring-1 ring-line animate-slide-up max-h-[92vh] overflow-y-auto thin-scroll`}
         role="dialog"
         aria-modal="true"
       >
-        <div className="flex items-center justify-between gap-3 px-5 sm:px-6 py-4 border-b border-white/10 sticky top-0 glass z-10">
-          <h2 className="text-base sm:text-lg font-semibold truncate">{title}</h2>
+        <div className="flex items-start justify-between gap-3 px-5 sm:px-6 py-4 border-b border-line sticky top-0 bg-surface z-10">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-ink truncate">{title}</h2>
+            {subtitle && <p className="text-sm text-ink-3 mt-0.5 truncate">{subtitle}</p>}
+          </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition"
+            className="p-2 -m-1 rounded-lg text-ink-3 hover:text-ink hover:bg-muted transition"
             aria-label="Close"
           >
             <Icon name="x" className="w-5 h-5" />
@@ -131,39 +135,65 @@ export const Modal = ({ open, onClose, children, title, wide = false }) => {
 
 export const Field = ({ label, children, hint }) => (
   <label className="block">
-    <span className="block text-xs font-semibold uppercase tracking-wider text-white/55 mb-1.5">
-      {label}
-    </span>
+    <span className="block text-sm font-medium text-ink-2 mb-1.5">{label}</span>
     {children}
-    {hint && <span className="block mt-1 text-xs text-white/45">{hint}</span>}
+    {hint && <span className="block mt-1.5 text-xs text-ink-3">{hint}</span>}
   </label>
 )
 
 export const inputClass =
-  'w-full rounded-xl bg-white/8 border border-white/12 px-3.5 py-2.5 text-sm text-white placeholder:text-white/35 outline-none transition focus:border-brand-500 focus:bg-white/12 focus:ring-2 focus:ring-brand-500/30'
+  'w-full rounded-lg bg-surface border border-line-strong px-3 py-2 text-sm text-ink placeholder:text-ink-3 shadow-xs outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20'
 
-export const Button = ({ variant = 'primary', className = '', ...props }) => {
+export const Button = ({ variant = 'primary', size = 'md', className = '', ...props }) => {
   const variants = {
-    primary: 'bg-brand-500 hover:bg-brand-600 text-white shadow-lg shadow-brand-500/25',
-    ghost: 'bg-white/8 hover:bg-white/14 text-white/85 border border-white/10',
-    danger: 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-200 border border-rose-400/25',
-    subtle: 'text-white/65 hover:text-white hover:bg-white/10',
+    primary: 'bg-primary hover:bg-primary-dark text-white shadow-xs',
+    secondary: 'bg-surface hover:bg-muted text-ink border border-line-strong shadow-xs',
+    danger: 'bg-surface hover:bg-danger-soft text-danger border border-danger/30',
+    ghost: 'text-ink-2 hover:text-ink hover:bg-muted',
   }
+  const sizes = { sm: 'px-2.5 py-1.5 text-xs gap-1.5', md: 'px-3.5 py-2 text-sm gap-2' }
   return (
     <button
-      className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none ${variants[variant]} ${className}`}
+      className={`inline-flex items-center justify-center rounded-lg font-medium transition disabled:opacity-45 disabled:pointer-events-none ${variants[variant]} ${sizes[size]} ${className}`}
       {...props}
     />
   )
 }
 
 export const EmptyState = ({ icon = 'sparkle', title, hint, action }) => (
-  <div className="flex flex-col items-center justify-center text-center py-16 px-6">
-    <div className="mb-4 p-4 rounded-2xl glass-soft text-white/60">
-      <Icon name={icon} className="w-7 h-7" />
+  <div className="flex flex-col items-center justify-center text-center py-14 px-6">
+    <div className="mb-3 grid place-items-center w-11 h-11 rounded-full bg-muted text-ink-3">
+      <Icon name={icon} className="w-5 h-5" />
     </div>
-    <p className="font-semibold text-white/85">{title}</p>
-    {hint && <p className="mt-1 text-sm text-white/50 max-w-sm">{hint}</p>}
-    {action && <div className="mt-5">{action}</div>}
+    <p className="font-semibold text-ink">{title}</p>
+    {hint && <p className="mt-1 text-sm text-ink-3 max-w-sm">{hint}</p>}
+    {action && <div className="mt-4">{action}</div>}
+  </div>
+)
+
+export const SectionTitle = ({ children, count, action }) => (
+  <div className="flex items-center gap-2 mb-3">
+    <h2 className="text-sm font-semibold text-ink">{children}</h2>
+    {count !== undefined && (
+      <span className="text-xs font-medium text-ink-3 bg-muted rounded-full px-2 py-0.5">{count}</span>
+    )}
+    {action && <div className="ml-auto">{action}</div>}
+  </div>
+)
+
+export const ClickableRow = ({ onClick, children, className = '' }) => (
+  <div
+    role="button"
+    tabIndex={0}
+    onClick={onClick}
+    onKeyDown={(e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        onClick()
+      }
+    }}
+    className={`cursor-pointer rounded-lg ${className}`}
+  >
+    {children}
   </div>
 )
