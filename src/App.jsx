@@ -18,6 +18,9 @@ export default function App() {
   const [openCardId, setOpenCardId] = useState(null)
   const [inviting, setInviting] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [calendarOpen, setCalendarOpen] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches,
+  )
   const [query, setQuery] = useState('')
   const reminders = useReminders()
 
@@ -60,12 +63,20 @@ export default function App() {
           unread={unread}
           onOpenInbox={() => setView('inbox')}
           onOpenMenu={() => setMenuOpen(true)}
+          calendarOpen={calendarOpen}
+          onToggleCalendar={() => setCalendarOpen((v) => !v)}
         />
 
         <main className="flex-1 pt-5 pb-24 lg:pb-8">
           {view === 'board' &&
             (board ? (
-              <Board board={board} onOpenCard={openCard} query={query} />
+              <Board
+                board={board}
+                onOpenCard={openCard}
+                query={query}
+                calendarOpen={calendarOpen}
+                onCloseCalendar={() => setCalendarOpen(false)}
+              />
             ) : (
               <EmptyState
                 icon="board"

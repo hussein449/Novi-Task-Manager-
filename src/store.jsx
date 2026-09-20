@@ -21,6 +21,28 @@ export const accentOf = (board) => {
   return LEGACY_ACCENTS[value] ?? 'blue'
 }
 
+/**
+ * Board roles. Owner manages the board and who is on it, editor does the work,
+ * viewer can read it but cannot add or change anything.
+ */
+export const ROLES = {
+  owner: { label: 'Owner', hint: 'Manages the board, its people and their roles' },
+  editor: { label: 'Editor', hint: 'Can add, edit and move tasks' },
+  viewer: { label: 'Viewer', hint: 'Can read the board only' },
+}
+
+export const roleOf = (board, userId) => {
+  const member = board?.members.find((m) => m.id === userId)
+  if (!member) return null
+  if (member.role) return member.role
+  // Boards saved before roles existed: the creator owns it, everyone else edits.
+  if (board.ownerId) return board.ownerId === userId ? 'owner' : 'editor'
+  return board.members[0]?.id === userId ? 'owner' : 'editor'
+}
+
+export const canEdit = (board, user) => ['owner', 'editor'].includes(roleOf(board, user?.id))
+export const canManage = (board, user) => roleOf(board, user?.id) === 'owner'
+
 export const DEFAULT_LISTS = () => [
   { id: uid('list'), title: 'To Do' },
   { id: uid('list'), title: 'Doing' },
@@ -39,8 +61,8 @@ function seed() {
   const folderId = uid('fold')
   const boardId = uid('board')
   const lists = DEFAULT_LISTS()
-  const owner = { id: uid('user'), name: 'Hussein', color: colorForName('Hussein') }
-  const ali = { id: uid('user'), name: 'Ali', color: colorForName('Ali') }
+  const owner = { id: uid('user'), name: 'Hussein', color: colorForName('Hussein'), role: 'owner' }
+  const ali = { id: uid('user'), name: 'Ali', color: colorForName('Ali'), role: 'editor' }
 
   const inTwoDays = new Date(Date.now() + 2 * 86400000)
   inTwoDays.setHours(17, 0, 0, 0)
@@ -56,6 +78,7 @@ function seed() {
         folderId,
         name: 'Teka and Fontain tasks',
         accent: 'blue',
+        ownerId: owner.id,
         lists,
         members: [owner, ali],
         createdAt: Date.now(),
@@ -128,10 +151,17 @@ function reducer(state, action) {
       const existing = state.boards
         .flatMap((b) => b.members)
         .find((m) => m.name.toLowerCase() === name.toLowerCase())
-      const user = existing ?? { id: uid('user'), name, color: colorForName(name) }
-      const boards = state.boards.map((b) =>
-        b.members.some((m) => m.id === user.id) ? b : { ...b, members: [...b.members, user] },
-      )
+      const user = existing ?? { id: uid('user'), name, color: colorForName(name), role: 'editor' }
+      const boards = state.boards.map((b) => {
+        if (b.members.some((m) => m.id === user.id)) return b
+        // A board with nobody on it is adopted by whoever opens it first.
+        const role = b.members.length === 0 ? 'owner' : 'editor'
+        return {
+          ...b,
+          ownerId: b.ownerId ?? (role === 'owner' ? user.id : b.ownerId),
+          members: [...b.members, { ...user, role }],
+        }
+      })
       return { ...state, user, boards }
     }
 
@@ -166,8 +196,9 @@ function reducer(state, action) {
         folderId: action.folderId ?? state.folders[0]?.id ?? null,
         name: action.name,
         accent: action.accent ?? 'blue',
+        ownerId: state.user?.id ?? null,
         lists: DEFAULT_LISTS(),
-        members: state.user ? [state.user] : [],
+        members: state.user ? [{ ...state.user, role: 'owner' }] : [],
         createdAt: Date.now(),
       }
       return { ...state, boards: [...state.boards, board], activeBoardId: board.id }
@@ -232,7 +263,12 @@ function reducer(state, action) {
       const board = state.boards.find((b) => b.id === action.boardId)
       if (!board) return state
       if (board.members.some((m) => m.name.toLowerCase() === name.toLowerCase())) return state
-      const member = { id: uid('user'), name, color: colorForName(name) }
+      const member = {
+        id: uid('user'),
+        name,
+        color: colorForName(name),
+        role: action.role ?? 'editor',
+      }
       return {
         ...state,
         boards: state.boards.map((b) =>
@@ -240,6 +276,21 @@ function reducer(state, action) {
         ),
       }
     }
+
+    case 'setMemberRole':
+      return {
+        ...state,
+        boards: state.boards.map((b) =>
+          b.id === action.boardId
+            ? {
+                ...b,
+                members: b.members.map((m) =>
+                  m.id === action.memberId ? { ...m, role: action.role } : m,
+                ),
+              }
+            : b,
+        ),
+      }
 
     case 'removeMember':
       return {

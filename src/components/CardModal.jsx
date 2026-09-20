@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Modal, Field, inputClass, Button, Avatar, Icon } from './ui'
-import { useStore, PRIORITIES } from '../store'
+import { useStore, PRIORITIES, ROLES, canEdit, roleOf } from '../store'
 import { toInputValue, formatDue, dueState } from '../lib/utils'
 
 const REMINDERS = [
@@ -22,7 +22,8 @@ export default function CardModal({ cardId, onClose }) {
 
   if (!card || !board) return null
 
-  const patch = (p) => dispatch({ type: 'updateCard', id: card.id, patch: p })
+  const mayEdit = canEdit(board, state.user)
+  const patch = (p) => mayEdit && dispatch({ type: 'updateCard', id: card.id, patch: p })
   const due = dueState(card.dueDate, card.done)
   const list = board.lists.find((l) => l.id === card.listId)
 
@@ -35,6 +36,7 @@ export default function CardModal({ cardId, onClose }) {
               rows={2}
               value={draft?.title ?? ''}
               onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+              readOnly={!mayEdit}
               onBlur={() => {
                 const value = (draft?.title ?? '').trim()
                 if (value && value !== card.title) patch({ title: value })
@@ -43,6 +45,7 @@ export default function CardModal({ cardId, onClose }) {
               className="w-full resize-none rounded-lg border border-transparent hover:border-line px-2 -mx-2 py-1 text-lg font-semibold text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             />
             <button
+              disabled={!mayEdit}
               onClick={() => dispatch({ type: 'toggleDone', id: card.id })}
               className={`mt-1 inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
                 card.done
@@ -61,7 +64,8 @@ export default function CardModal({ cardId, onClose }) {
               value={draft?.description ?? ''}
               onChange={(e) => setDraft({ ...draft, description: e.target.value })}
               onBlur={() => patch({ description: draft?.description ?? '' })}
-              placeholder="Add detail, links or what done looks like…"
+              readOnly={!mayEdit}
+              placeholder={mayEdit ? 'Add detail, links or what done looks like…' : 'No description'}
               className={`${inputClass} resize-y`}
             />
           </Field>
@@ -70,6 +74,7 @@ export default function CardModal({ cardId, onClose }) {
             <Field label="Deadline">
               <input
                 type="datetime-local"
+                disabled={!mayEdit}
                 value={toInputValue(card.dueDate)}
                 onChange={(e) =>
                   patch({ dueDate: e.target.value ? new Date(e.target.value).toISOString() : null })
@@ -83,7 +88,7 @@ export default function CardModal({ cardId, onClose }) {
                 value={card.remindBefore ?? 60}
                 onChange={(e) => patch({ remindBefore: Number(e.target.value) })}
                 className={inputClass}
-                disabled={!card.dueDate}
+                disabled={!card.dueDate || !mayEdit}
               >
                 {REMINDERS.map((r) => (
                   <option key={r.value} value={r.value}>
@@ -116,6 +121,7 @@ export default function CardModal({ cardId, onClose }) {
           <Field label="Assigned to">
             <div className="space-y-1">
               <button
+                disabled={!mayEdit}
                 onClick={() => patch({ assigneeId: null })}
                 className={`w-full flex items-center gap-2.5 rounded-lg border px-2.5 py-2 text-sm transition ${
                   !card.assigneeId ? 'border-primary bg-primary-soft' : 'border-transparent hover:bg-muted'
@@ -127,6 +133,7 @@ export default function CardModal({ cardId, onClose }) {
               {board.members.map((m) => (
                 <button
                   key={m.id}
+                  disabled={!mayEdit}
                   onClick={() => patch({ assigneeId: m.id })}
                   className={`w-full flex items-center gap-2.5 rounded-lg border px-2.5 py-2 text-sm transition ${
                     card.assigneeId === m.id
@@ -136,7 +143,9 @@ export default function CardModal({ cardId, onClose }) {
                 >
                   <Avatar user={m} size={26} />
                   <span className="truncate text-ink">{m.name}</span>
-                  {state.user?.id === m.id && <span className="ml-auto text-xs text-ink-3">you</span>}
+                  <span className="ml-auto shrink-0 text-xs text-ink-3">
+                    {state.user?.id === m.id ? 'you' : ROLES[roleOf(board, m.id)]?.label}
+                  </span>
                 </button>
               ))}
             </div>
@@ -144,6 +153,7 @@ export default function CardModal({ cardId, onClose }) {
 
           <Field label="Status">
             <select
+              disabled={!mayEdit}
               value={card.listId}
               onChange={(e) =>
                 dispatch({ type: 'moveCard', cardId: card.id, toListId: e.target.value, toIndex: 0 })
@@ -163,6 +173,7 @@ export default function CardModal({ cardId, onClose }) {
               {Object.entries(PRIORITIES).map(([key, p]) => (
                 <button
                   key={key}
+                  disabled={!mayEdit}
                   onClick={() => patch({ priority: key })}
                   className={`flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition ${
                     card.priority === key ? p.chip : 'border-line-strong bg-surface text-ink-2 hover:bg-muted'
@@ -174,6 +185,11 @@ export default function CardModal({ cardId, onClose }) {
             </div>
           </Field>
 
+          {!mayEdit ? (
+            <p className="rounded-lg bg-muted px-3 py-2 text-xs text-ink-2">
+              You have view-only access to this board, so this task cannot be changed.
+            </p>
+          ) : (
           <Button
             variant="danger"
             className="w-full"
@@ -185,8 +201,9 @@ export default function CardModal({ cardId, onClose }) {
             }}
           >
             <Icon name="trash" className="w-4 h-4" />
-            Delete card
+            Delete task
           </Button>
+          )}
         </div>
       </div>
     </Modal>

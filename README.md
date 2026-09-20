@@ -11,13 +11,21 @@ the browser, so there is no backend to run.
   board by name, or send an invite link that carries the whole board (lists, cards,
   members) to another browser.
 - **Folders → boards → cards** — group boards in folders, one per client or project.
-- **Three statuses out of the box** — To Do / Doing / Done. Each status is a
-  full-width band down the page with its own tinted background, so the board never
-  scrolls sideways: cards sit in a grid that reflows from four across on a wide
-  screen to one on a phone. Statuses can be renamed, added, collapsed or deleted,
-  and dropping a card in the last one marks it complete.
-- **Drag & drop** — powered by dnd-kit, with pointer, touch and keyboard sensors, so
-  it works on a phone as well as a desktop.
+- **Three statuses out of the box** — To Do / Doing / Done. The board is a task
+  list grouped by status: one row per task with its deadline, priority and
+  assignee in aligned columns, and a group header you can collapse. Nothing
+  scrolls sideways at any width. Statuses can be renamed, added or deleted, and
+  moving a task into the last one marks it complete.
+- **Roles** — every person on a board is an owner, an editor or a viewer. Editors
+  add and change tasks; viewers can read the board but get no add buttons, no drag
+  handles and a read-only task dialog; only the owner invites people, sets their
+  role, renames the board or changes its colour.
+- **Deadline calendar** — a panel beside the board, opened and closed from the top
+  bar, showing the month with a coloured dot per person on each day. Filter it to
+  one person, click a day to list what is due, click a task to open it.
+- **Drag & drop** — powered by dnd-kit, with pointer, touch and keyboard sensors,
+  so it works on a phone as well as a desktop. Drag a row by its handle to reorder
+  it or to move it to another status.
 - **Deadlines, assignees, priorities** — every card carries a due date, an assigned
   board member, a priority and a description.
 - **Reminders** — pick a lead time per card (at the deadline, 10 min, 1 hour, 3 hours,
@@ -25,8 +33,9 @@ the browser, so there is no backend to run.
   notifications once you allow them.
 - **Planner** — every deadline across every board, grouped into Overdue / Today /
   Tomorrow / This week / Later.
-- **Overview** — completion rate, overdue counts, per-board progress, workload per
-  person and the next deadlines.
+- **Overview** — headline counts, then a section per project folder: its boards
+  with progress, and the people in that folder with their role and workload.
+  Finishes with the next deadlines across every folder.
 - **Inbox** — reminders that have fired, plus everything assigned to you.
 
 ## Run it
@@ -56,9 +65,10 @@ src/
   lib/utils.js           ids, colors, date formatting, invite encoding
   lib/useReminders.js    the deadline watcher behind toasts and notifications
   components/
-    Board.jsx            DndContext, status bands, drag overlay
-    StatusSection.jsx    one status band: header, card grid, inline add
-    TaskCard.jsx         sortable card + its visual face
+    Board.jsx            DndContext, status groups, calendar panel, drag overlay
+    StatusGroup.jsx      one status group: header, rows, inline add
+    TaskRow.jsx          a sortable task row and its visual face
+    Calendar.jsx         month calendar of deadlines, filtered per person
     CardModal.jsx        deadline, reminder, assignee, status, priority
     BoardsView.jsx       folders and boards, create/delete
     Planner.jsx          deadlines grouped by time bucket
@@ -74,6 +84,15 @@ src/
 One reducer in `src/store.jsx` holds `folders`, `boards`, `cards`, the signed-in
 `user` and fired `notifications`. It is persisted to `localStorage` under
 `novi.task-manager.v1` on every change and rehydrated on load.
+
+### Drag and drop
+
+Three things keep dropping reliable, and each fixes a real failure: the droppable
+covers the whole status group rather than just its rows; collision detection is
+`pointerWithin`, so the group under the cursor wins; and droppables re-measure
+with `MeasuringStrategy.Always`, so rects are never stale after the layout
+shifts. `html { scrollbar-gutter: stable }` matters too — without it a scrollbar
+appearing mid-drag resizes the window, and dnd-kit cancels a drag on resize.
 
 ### Invite links
 

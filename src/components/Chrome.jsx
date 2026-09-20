@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon, Avatar, AvatarStack, Button } from './ui'
-import { useStore, ACCENTS, accentOf } from '../store'
+import { useStore, ACCENTS, accentOf, ROLES, roleOf, canManage } from '../store'
 
 const VIEW_TITLES = {
   board: 'Board',
@@ -12,7 +12,18 @@ const VIEW_TITLES = {
 
 /* ---------------- top bar ---------------- */
 
-export function TopBar({ board, view, onInvite, onSearch, query, unread, onOpenInbox, onOpenMenu }) {
+export function TopBar({
+  board,
+  view,
+  onInvite,
+  onSearch,
+  query,
+  unread,
+  onOpenInbox,
+  onOpenMenu,
+  calendarOpen,
+  onToggleCalendar,
+}) {
   const { state, dispatch } = useStore()
   const [menu, setMenu] = useState(false)
   const [renaming, setRenaming] = useState(false)
@@ -36,6 +47,8 @@ export function TopBar({ board, view, onInvite, onSearch, query, unread, onOpenI
   }
 
   const onBoard = view === 'board' && board
+  const myRole = board ? roleOf(board, state.user?.id) : null
+  const mayManage = board ? canManage(board, state.user) : false
 
   return (
     <header className="sticky top-0 z-30 bg-surface border-b border-line">
@@ -69,14 +82,24 @@ export function TopBar({ board, view, onInvite, onSearch, query, unread, onOpenI
               <>
                 <span className={`hidden sm:block w-2 h-2 rounded-full accent-${accentOf(board)}`} />
                 <h1 className="text-base sm:text-lg font-semibold text-ink truncate">{board.name}</h1>
-                <button
-                  onClick={() => setRenaming(true)}
-                  className="p-1.5 rounded-md text-ink-3 hover:text-ink hover:bg-muted transition"
-                  aria-label="Rename board"
-                  title="Rename board"
-                >
-                  <Icon name="pencil" className="w-4 h-4" />
-                </button>
+                {mayManage && (
+                  <button
+                    onClick={() => setRenaming(true)}
+                    className="p-1.5 rounded-md text-ink-3 hover:text-ink hover:bg-muted transition"
+                    aria-label="Rename board"
+                    title="Rename board"
+                  >
+                    <Icon name="pencil" className="w-4 h-4" />
+                  </button>
+                )}
+                {myRole && myRole !== 'owner' && (
+                  <span
+                    className="hidden sm:inline shrink-0 rounded-md border border-line bg-muted px-1.5 py-0.5 text-xs font-medium text-ink-2"
+                    title={ROLES[myRole]?.hint}
+                  >
+                    {ROLES[myRole]?.label}
+                  </span>
+                )}
               </>
             )
           ) : (
@@ -97,6 +120,20 @@ export function TopBar({ board, view, onInvite, onSearch, query, unread, onOpenI
               className="w-40 lg:w-60 rounded-lg border border-line-strong bg-surface pl-8 pr-3 py-1.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 placeholder:text-ink-3"
             />
           </div>
+
+          {onBoard && (
+            <button
+              onClick={onToggleCalendar}
+              className={`p-2 rounded-lg transition ${
+                calendarOpen ? 'bg-primary-soft text-primary' : 'text-ink-2 hover:text-ink hover:bg-muted'
+              }`}
+              aria-pressed={calendarOpen}
+              aria-label={calendarOpen ? 'Hide the deadline calendar' : 'Show the deadline calendar'}
+              title={calendarOpen ? 'Hide the deadline calendar' : 'Show the deadline calendar'}
+            >
+              <Icon name="planner" className="w-5 h-5" />
+            </button>
+          )}
 
           <button
             onClick={onOpenInbox}
@@ -138,7 +175,7 @@ export function TopBar({ board, view, onInvite, onSearch, query, unread, onOpenI
                   <p className="text-xs text-ink-3 mt-0.5">Signed in on this device</p>
                 </div>
 
-                {onBoard && (
+                {onBoard && mayManage && (
                   <div className="px-3 py-2 border-t border-line">
                     <p className="text-xs font-medium text-ink-2 mb-2">Board colour</p>
                     <div className="flex gap-1.5">

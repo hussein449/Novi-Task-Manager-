@@ -38,6 +38,16 @@ body,
   height: 100%;
 }
 
+/*
+ * Always reserve the scrollbar gutter. Without it, a list growing past the
+ * viewport mid-drag toggles the scrollbar, which changes the window width;
+ * dnd-kit treats a window resize as "cancel the drag", so a card dropped in a
+ * distant group would silently snap back.
+ */
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   margin: 0;
   font-family: var(--font-sans);

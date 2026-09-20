@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
-import { Icon, Avatar } from './ui'
-import { useStore, accentOf } from '../store'
+import { Icon, Avatar, EmptyState } from './ui'
+import { useStore, accentOf, ROLES, roleOf } from '../store'
 import { formatDue, dueState } from '../lib/utils'
 
 const Stat = ({ label, value, tone = 'text-ink', icon }) => (
@@ -13,44 +13,68 @@ const Stat = ({ label, value, tone = 'text-ink', icon }) => (
   </div>
 )
 
+const Bar = ({ pct, className = 'bg-primary' }) => (
+  <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+    <div className={`h-full rounded-full transition-all ${className}`} style={{ width: `${pct}%` }} />
+  </div>
+)
+
+const summarise = (cards) => {
+  const now = Date.now()
+  const done = cards.filter((c) => c.done).length
+  const overdue = cards.filter((c) => !c.done && c.dueDate && new Date(c.dueDate).getTime() < now).length
+  const dueSoon = cards.filter(
+    (c) =>
+      !c.done &&
+      c.dueDate &&
+      new Date(c.dueDate).getTime() >= now &&
+      new Date(c.dueDate).getTime() - now < 3 * 86400000,
+  ).length
+  return {
+    total: cards.length,
+    done,
+    open: cards.length - done,
+    overdue,
+    dueSoon,
+    pct: cards.length ? Math.round((done / cards.length) * 100) : 0,
+  }
+}
+
+/** Per-person totals inside one folder, so workload is read in context. */
+const peopleIn = (boards, cards) => {
+  const map = new Map()
+  boards.forEach((b) =>
+    b.members.forEach((m) => {
+      if (!map.has(m.id)) map.set(m.id, { member: m, role: roleOf(b, m.id), open: 0, done: 0, overdue: 0 })
+    }),
+  )
+  cards.forEach((c) => {
+    const row = map.get(c.assigneeId)
+    if (!row) return
+    if (c.done) row.done += 1
+    else {
+      row.open += 1
+      if (c.dueDate && new Date(c.dueDate).getTime() < Date.now()) row.overdue += 1
+    }
+  })
+  return [...map.values()].sort((a, b) => b.open - a.open || b.done - a.done)
+}
+
 export default function Overview({ onOpenBoard, onOpenCard }) {
   const { state } = useStore()
 
-  const stats = useMemo(() => {
-    const now = Date.now()
-    const cards = state.cards
-    return {
-      total: cards.length,
-      done: cards.filter((c) => c.done).length,
-      overdue: cards.filter((c) => !c.done && c.dueDate && new Date(c.dueDate).getTime() < now).length,
-      dueSoon: cards.filter(
-        (c) =>
-          !c.done &&
-          c.dueDate &&
-          new Date(c.dueDate).getTime() >= now &&
-          new Date(c.dueDate).getTime() - now < 3 * 86400000,
-      ).length,
-    }
-  }, [state.cards])
+  const all = useMemo(() => summarise(state.cards), [state.cards])
 
-  const people = useMemo(() => {
-    const map = new Map()
-    state.boards.forEach((b) =>
-      b.members.forEach((m) => {
-        if (!map.has(m.id)) map.set(m.id, { member: m, open: 0, done: 0, overdue: 0 })
+  const folders = useMemo(
+    () =>
+      state.folders.map((folder) => {
+        const boards = state.boards.filter((b) => b.folderId === folder.id)
+        const ids = boards.map((b) => b.id)
+        const cards = state.cards.filter((c) => ids.includes(c.boardId))
+        return { folder, boards, cards, stats: summarise(cards), people: peopleIn(boards, cards) }
       }),
-    )
-    state.cards.forEach((c) => {
-      const row = map.get(c.assigneeId)
-      if (!row) return
-      if (c.done) row.done += 1
-      else {
-        row.open += 1
-        if (c.dueDate && new Date(c.dueDate).getTime() < Date.now()) row.overdue += 1
-      }
-    })
-    return [...map.values()].sort((a, b) => b.open - a.open)
-  }, [state.boards, state.cards])
+    [state.folders, state.boards, state.cards],
+  )
 
   const upcoming = useMemo(
     () =>
@@ -61,93 +85,127 @@ export default function Overview({ onOpenBoard, onOpenCard }) {
     [state.cards],
   )
 
-  const pct = stats.total ? Math.round((stats.done / stats.total) * 100) : 0
-
   return (
     <div className="px-4 sm:px-6 max-w-5xl mx-auto w-full">
       <div className="mb-5">
         <h1 className="text-xl font-semibold text-ink tracking-tight">Overview</h1>
         <p className="text-sm text-ink-3 mt-0.5">
-          Everything across {state.boards.length} {state.boards.length === 1 ? 'board' : 'boards'} and{' '}
-          {state.folders.length} {state.folders.length === 1 ? 'folder' : 'folders'}.
+          Every project folder, its boards and who is carrying the work.
         </p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Stat label="All cards" value={stats.total} icon="board" />
-        <Stat label="Completed" value={stats.done} tone="text-success" icon="check" />
-        <Stat label="Due in 3 days" value={stats.dueSoon} tone="text-warning" icon="clock" />
-        <Stat label="Overdue" value={stats.overdue} tone="text-danger" icon="bell" />
+        <Stat label="All tasks" value={all.total} icon="board" />
+        <Stat label="Completed" value={all.done} tone="text-success" icon="check" />
+        <Stat label="Due in 3 days" value={all.dueSoon} tone="text-warning" icon="clock" />
+        <Stat label="Overdue" value={all.overdue} tone="text-danger" icon="bell" />
       </div>
 
-      <div className="mt-3 rounded-xl border border-line bg-surface p-4 shadow-xs">
-        <div className="flex items-center justify-between text-sm">
-          <span className="font-medium text-ink">Completion</span>
-          <span className="text-ink-2 tabular-nums">{pct}%</span>
-        </div>
-        <div className="mt-2 h-2 rounded-full bg-muted overflow-hidden">
-          <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${pct}%` }} />
-        </div>
-      </div>
+      {folders.length === 0 && (
+        <EmptyState icon="folder" title="No project folders yet" hint="Create one to see it here." />
+      )}
 
-      <div className="grid gap-3 lg:grid-cols-2 mt-3">
-        <section className="rounded-xl border border-line bg-surface p-4 shadow-xs">
-          <h2 className="text-sm font-semibold text-ink mb-3">Boards</h2>
-          <div className="space-y-1">
-            {state.boards.map((b) => {
-              const cards = state.cards.filter((c) => c.boardId === b.id)
-              const done = cards.filter((c) => c.done).length
-              const bPct = cards.length ? Math.round((done / cards.length) * 100) : 0
-              const folder = state.folders.find((f) => f.id === b.folderId)
-              return (
-                <button
-                  key={b.id}
-                  onClick={() => onOpenBoard(b.id)}
-                  className="w-full text-left rounded-lg px-2.5 py-2 hover:bg-muted transition"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full shrink-0 accent-${accentOf(b)}`} />
-                    <span className="text-sm font-medium text-ink truncate">{b.name}</span>
-                    <span className="ml-auto text-xs text-ink-3 tabular-nums">
-                      {done}/{cards.length}
-                    </span>
-                  </div>
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-                      <div className="h-full bg-primary rounded-full" style={{ width: `${bPct}%` }} />
-                    </div>
-                    {folder && <span className="text-xs text-ink-3 shrink-0">{folder.name}</span>}
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        </section>
+      <div className="mt-6 space-y-4">
+        {folders.map(({ folder, boards, stats, people }) => (
+          <section key={folder.id} className="rounded-xl border border-line bg-surface shadow-xs">
+            <header className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 border-b border-line">
+              <span aria-hidden="true">{folder.emoji}</span>
+              <h2 className="font-semibold text-ink">{folder.name}</h2>
+              <span className="text-xs font-medium text-ink-3 bg-muted rounded-full px-2 py-0.5">
+                {boards.length} {boards.length === 1 ? 'board' : 'boards'}
+              </span>
 
-        <section className="rounded-xl border border-line bg-surface p-4 shadow-xs">
-          <h2 className="text-sm font-semibold text-ink mb-3">Workload by person</h2>
-          <div className="space-y-0.5">
-            {people.map(({ member, open, done, overdue }) => (
-              <div key={member.id} className="flex items-center gap-3 rounded-lg px-2.5 py-2">
-                <Avatar user={member} size={28} />
-                <span className="text-sm text-ink truncate">{member.name}</span>
-                <div className="ml-auto flex items-center gap-2 text-xs tabular-nums">
-                  {overdue > 0 && (
-                    <span className="rounded-md bg-danger-soft text-danger px-1.5 py-0.5 font-medium">
-                      {overdue} late
-                    </span>
-                  )}
-                  <span className="text-ink-2">{open} open</span>
-                  <span className="text-ink-3">{done} done</span>
-                </div>
+              <div className="ml-auto flex items-center gap-3 text-xs tabular-nums">
+                <span className="text-ink-2">{stats.open} open</span>
+                <span className="text-success">{stats.done} done</span>
+                {stats.overdue > 0 && (
+                  <span className="rounded-md bg-danger-soft text-danger px-1.5 py-0.5 font-medium">
+                    {stats.overdue} overdue
+                  </span>
+                )}
+                <span className="text-ink-3 w-9 text-right">{stats.pct}%</span>
               </div>
-            ))}
-          </div>
-        </section>
+              <div className="w-full">
+                <Bar pct={stats.pct} />
+              </div>
+            </header>
+
+            <div className="grid lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-line">
+              <div className="p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-3 px-1 mb-2">
+                  Boards
+                </p>
+                {boards.length === 0 ? (
+                  <p className="text-sm text-ink-3 px-1 py-2">No boards in this folder yet.</p>
+                ) : (
+                  <div className="space-y-0.5">
+                    {boards.map((b) => {
+                      const cards = state.cards.filter((c) => c.boardId === b.id)
+                      const s = summarise(cards)
+                      return (
+                        <button
+                          key={b.id}
+                          onClick={() => onOpenBoard(b.id)}
+                          className="w-full text-left rounded-lg px-2.5 py-2 hover:bg-muted transition"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full shrink-0 accent-${accentOf(b)}`} />
+                            <span className="text-sm font-medium text-ink truncate">{b.name}</span>
+                            {s.overdue > 0 && (
+                              <span className="shrink-0 rounded-md bg-danger-soft text-danger px-1.5 text-xs font-medium">
+                                {s.overdue}
+                              </span>
+                            )}
+                            <span className="ml-auto text-xs text-ink-3 tabular-nums shrink-0">
+                              {s.done}/{s.total}
+                            </span>
+                          </div>
+                          <div className="mt-1.5">
+                            <Bar pct={s.pct} />
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-3 px-1 mb-2">
+                  People in this folder
+                </p>
+                {people.length === 0 ? (
+                  <p className="text-sm text-ink-3 px-1 py-2">Nobody has been added yet.</p>
+                ) : (
+                  <div className="space-y-0.5">
+                    {people.map(({ member, role, open, done, overdue }) => (
+                      <div key={member.id} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2">
+                        <Avatar user={member} size={26} />
+                        <span className="min-w-0">
+                          <span className="block text-sm text-ink truncate">{member.name}</span>
+                          <span className="block text-xs text-ink-3">{ROLES[role]?.label ?? 'Member'}</span>
+                        </span>
+                        <span className="ml-auto flex items-center gap-2 text-xs tabular-nums shrink-0">
+                          {overdue > 0 && (
+                            <span className="rounded-md bg-danger-soft text-danger px-1.5 py-0.5 font-medium">
+                              {overdue} late
+                            </span>
+                          )}
+                          <span className="text-ink-2">{open} open</span>
+                          <span className="text-ink-3">{done} done</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        ))}
       </div>
 
-      <section className="rounded-xl border border-line bg-surface p-4 shadow-xs mt-3">
-        <h2 className="text-sm font-semibold text-ink mb-3">Next deadlines</h2>
+      <section className="rounded-xl border border-line bg-surface p-4 shadow-xs mt-4">
+        <h2 className="text-sm font-semibold text-ink mb-3">Next deadlines, across every folder</h2>
         {upcoming.length === 0 ? (
           <p className="text-sm text-ink-3 py-4 text-center">No deadlines set.</p>
         ) : (
@@ -155,6 +213,7 @@ export default function Overview({ onOpenBoard, onOpenCard }) {
             {upcoming.map((c) => {
               const s = dueState(c.dueDate, c.done)
               const board = state.boards.find((b) => b.id === c.boardId)
+              const folder = state.folders.find((f) => f.id === board?.folderId)
               return (
                 <button
                   key={c.id}
@@ -164,7 +223,10 @@ export default function Overview({ onOpenBoard, onOpenCard }) {
                   <Avatar user={board?.members.find((m) => m.id === c.assigneeId) ?? null} size={26} />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-ink truncate">{c.title}</p>
-                    <p className="text-xs text-ink-3 truncate">{board?.name}</p>
+                    <p className="text-xs text-ink-3 truncate">
+                      {folder ? `${folder.name} · ` : ''}
+                      {board?.name}
+                    </p>
                   </div>
                   <span
                     className={`text-xs font-medium shrink-0 ${

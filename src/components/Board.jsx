@@ -3,47 +3,40 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
+  MeasuringStrategy,
   PointerSensor,
   TouchSensor,
-  closestCorners,
+  pointerWithin,
+  rectIntersection,
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import StatusSection from './StatusSection'
-import { CardFace } from './TaskCard'
+import StatusGroup from './StatusGroup'
+import { RowFace } from './TaskRow'
 import { Icon, EmptyState, Button } from './ui'
-import { useStore, cardsOfBoard } from '../store'
+import Calendar from './Calendar'
+import { useStore, cardsOfBoard, canEdit } from '../store'
 
-/**
- * Tints for the status bands: the first status stays neutral, the last one —
- * where a card counts as done — is green, and anything in between cycles.
- */
-const TONES = {
-  first: { band: 'lane-grey', dot: 'bg-slate-500' },
-  last: { band: 'lane-green', dot: 'bg-emerald-600' },
-  middle: [
-    { band: 'lane-blue', dot: 'bg-blue-600' },
-    { band: 'lane-amber', dot: 'bg-amber-600' },
-    { band: 'lane-violet', dot: 'bg-violet-600' },
-  ],
+const DOTS = ['bg-slate-500', 'bg-blue-600', 'bg-amber-600', 'bg-violet-600']
+const DONE_DOT = 'bg-emerald-600'
+
+const dotFor = (index, total) => {
+  if (total > 1 && index === total - 1) return DONE_DOT
+  return DOTS[index % DOTS.length]
 }
 
-const toneFor = (index, total) => {
-  if (total > 1 && index === total - 1) return TONES.last
-  if (index === 0) return TONES.first
-  return TONES.middle[(index - 1) % TONES.middle.length]
-}
-
-export default function Board({ board, onOpenCard, query }) {
+export default function Board({ board, onOpenCard, query, calendarOpen, onCloseCalendar }) {
   const { state, dispatch } = useStore()
+  const mayEdit = canEdit(board, state.user)
   const [activeId, setActiveId] = useState(null)
+  const [overListId, setOverListId] = useState(null)
   const [addingList, setAddingList] = useState(false)
   const [listTitle, setListTitle] = useState('')
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
@@ -70,21 +63,35 @@ export default function Board({ board, onOpenCard, query }) {
 
   const activeCard = activeId ? boardCards.find((c) => c.id === activeId) : null
 
+  /**
+   * Whatever is under the pointer wins, which is what a person expects when
+   * they let go of a row. rectIntersection is only a fallback for keyboard
+   * dragging, where there is no pointer.
+   */
+  const collisionDetection = (args) => {
+    const pointerHits = pointerWithin(args)
+    return pointerHits.length > 0 ? pointerHits : rectIntersection(args)
+  }
+
   const listIdOf = (over) => {
     if (!over) return null
-    if (over.data.current?.type === 'list') return over.data.current.listId
-    if (over.data.current?.type === 'card') return over.data.current.listId
+    const data = over.data.current
+    if (data?.type === 'list' || data?.type === 'card') return data.listId
     return board.lists.some((l) => l.id === over.id) ? over.id : null
   }
 
+  const handleDragOver = ({ over }) => setOverListId(listIdOf(over))
+
   const handleDragEnd = ({ active, over }) => {
     setActiveId(null)
-    if (!over) return
+    setOverListId(null)
+    if (!over || !mayEdit) return
+
     const toListId = listIdOf(over)
     if (!toListId) return
 
-    // The reducer removes the card first and re-inserts it, which matches
-    // arrayMove semantics: the index we hand it is the card's final position.
+    // The reducer removes the card before re-inserting it, so the index handed
+    // over is the card's final position, matching arrayMove semantics.
     const target = byList[toListId] ?? []
     const overIndex = target.findIndex((c) => c.id === over.id)
     const toIndex = overIndex === -1 ? target.length : overIndex
@@ -107,10 +114,12 @@ export default function Board({ board, onOpenCard, query }) {
         title="This board has no statuses yet"
         hint="Add one to start tracking work."
         action={
-          <Button onClick={() => dispatch({ type: 'addList', boardId: board.id, title: 'To Do' })}>
-            <Icon name="plus" className="w-4 h-4" />
-            Add a status
-          </Button>
+          mayEdit ? (
+            <Button onClick={() => dispatch({ type: 'addList', boardId: board.id, title: 'To Do' })}>
+              <Icon name="plus" className="w-4 h-4" />
+              Add a status
+            </Button>
+          ) : null
         }
       />
     )
@@ -119,24 +128,36 @@ export default function Board({ board, onOpenCard, query }) {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={collisionDetection}
+      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
       onDragStart={({ active }) => setActiveId(active.id)}
-      onDragCancel={() => setActiveId(null)}
+      onDragCancel={() => {
+        setActiveId(null)
+        setOverListId(null)
+      }}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="px-4 sm:px-6 max-w-6xl mx-auto w-full space-y-3">
+      <div
+        className={`px-4 sm:px-6 mx-auto w-full grid gap-4 items-start ${
+          calendarOpen ? 'max-w-6xl lg:grid-cols-[minmax(0,1fr)_320px]' : 'max-w-4xl'
+        }`}
+      >
+        <div className="space-y-3 min-w-0">
         {board.lists.map((list, index) => (
-          <StatusSection
+          <StatusGroup
             key={list.id}
             board={board}
             list={list}
             cards={byList[list.id] ?? []}
-            tone={toneFor(index, board.lists.length)}
+            dot={dotFor(index, board.lists.length)}
             onOpenCard={onOpenCard}
+            isDragTarget={activeId !== null && overListId === list.id}
+            readOnly={!mayEdit}
           />
         ))}
 
-        {addingList ? (
+        {!mayEdit ? null : addingList ? (
           <form onSubmit={submitList} className="rounded-xl border border-line bg-surface p-3">
             <input
               autoFocus
@@ -171,17 +192,22 @@ export default function Board({ board, onOpenCard, query }) {
             Add another status
           </button>
         )}
+        </div>
+
+        {calendarOpen && (
+          <div className="lg:sticky lg:top-20">
+            <Calendar board={board} onOpenCard={onOpenCard} onClose={onCloseCalendar} />
+          </div>
+        )}
       </div>
 
-      <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}>
+      <DragOverlay dropAnimation={{ duration: 160, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}>
         {activeCard ? (
-          <div className="w-[280px] cursor-grabbing">
-            <CardFace
-              card={activeCard}
-              member={board.members.find((m) => m.id === activeCard.assigneeId) ?? null}
-              dragging
-            />
-          </div>
+          <RowFace
+            card={activeCard}
+            member={board.members.find((m) => m.id === activeCard.assigneeId) ?? null}
+            dragging
+          />
         ) : null}
       </DragOverlay>
     </DndContext>
