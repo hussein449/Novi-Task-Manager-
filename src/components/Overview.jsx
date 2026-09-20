@@ -143,7 +143,7 @@ export default function Overview({ onOpenBoard, onOpenCard, onManageFolder }) {
             </header>
 
             <div className="grid lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-line">
-              <div className="p-3">
+              <div className="p-3 min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-wide text-ink-3 px-1 mb-2">
                   Boards
                 </p>
@@ -182,7 +182,7 @@ export default function Overview({ onOpenBoard, onOpenCard, onManageFolder }) {
                 )}
               </div>
 
-              <div className="p-3">
+              <div className="p-3 min-w-0">
                 <div className="flex items-center gap-2 px-1 mb-2">
                   <p className="text-xs font-semibold uppercase tracking-wide text-ink-3">
                     People in this folder
@@ -201,7 +201,7 @@ export default function Overview({ onOpenBoard, onOpenCard, onManageFolder }) {
                     {people.map(({ member, role, open, done, overdue }) => (
                       <div key={member.id} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2">
                         <Avatar user={member} size={26} />
-                        <span className="min-w-0">
+                        <span className="min-w-0 flex-1">
                           <span className="block text-sm text-ink truncate">{member.name}</span>
                           <span className="block text-xs text-ink-3 truncate">
                             {ROLES[role]?.label ?? 'Member'}

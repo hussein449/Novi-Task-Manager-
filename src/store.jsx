@@ -104,7 +104,14 @@ function reducer(state, action) {
     case 'dismissError':
       return { ...state, error: null }
 
-    case 'session':
+    case 'session': {
+      // Supabase re-validates the session whenever the tab regains focus, and
+      // fires this again for the person who is already signed in. Treating that
+      // as a new sign-in would reset the screen to "loading" with nothing left
+      // to trigger a load, so the same person keeps what they already have.
+      const sameUser = Boolean(action.user) && state.user?.id === action.user.id
+      if (sameUser) return { ...state, user: action.user }
+
       return {
         ...state,
         user: action.user,
@@ -114,6 +121,7 @@ function reducer(state, action) {
         boards: action.user ? state.boards : [],
         cards: action.user ? state.cards : [],
       }
+    }
 
     case 'hydrate': {
       const { folders, boards, cards } = action.data
@@ -714,8 +722,18 @@ export function StoreProvider({ children }) {
     })
     channel.subscribe()
 
+    // A backgrounded tab — a phone with the screen off, say — misses live
+    // updates and may have had its socket dropped, so catch up on return.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') nudge()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('online', nudge)
+
     return () => {
       clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('online', nudge)
       supabase.removeChannel(channel)
     }
   }, [userId, refresh])
