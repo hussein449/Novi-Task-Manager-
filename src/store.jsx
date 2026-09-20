@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useReducer } from 'react'
-import { uid, colorForName, decodePayload } from './lib/utils'
+import { uid, colorForName, decodePayload, nameFromEmail } from './lib/utils'
 
 const STORAGE_KEY = 'novi.task-manager.v1'
 
@@ -43,6 +43,21 @@ export const roleOf = (board, userId) => {
 export const canEdit = (board, user) => ['owner', 'editor'].includes(roleOf(board, user?.id))
 export const canManage = (board, user) => roleOf(board, user?.id) === 'owner'
 
+/**
+ * Folder membership is the source of truth for who works on a client or
+ * project: adding someone to a folder puts them on every board inside it.
+ */
+export const folderMembers = (folder) => folder?.members ?? []
+
+export const folderRoleOf = (folder, userId) => {
+  const member = folderMembers(folder).find((m) => m.id === userId)
+  if (member) return member.role ?? 'editor'
+  // Folders saved before membership existed belong to whoever opens them.
+  return folderMembers(folder).length === 0 ? 'owner' : null
+}
+
+export const canManageFolder = (folder, user) => folderRoleOf(folder, user?.id) === 'owner'
+
 export const DEFAULT_LISTS = () => [
   { id: uid('list'), title: 'To Do' },
   { id: uid('list'), title: 'Doing' },
@@ -62,7 +77,13 @@ function seed() {
   const boardId = uid('board')
   const lists = DEFAULT_LISTS()
   const owner = { id: uid('user'), name: 'Hussein', color: colorForName('Hussein'), role: 'owner' }
-  const ali = { id: uid('user'), name: 'Ali', color: colorForName('Ali'), role: 'editor' }
+  const ali = {
+    id: uid('user'),
+    name: 'Ali',
+    email: 'ali@teka.co',
+    color: colorForName('Ali'),
+    role: 'editor',
+  }
 
   const inTwoDays = new Date(Date.now() + 2 * 86400000)
   inTwoDays.setHours(17, 0, 0, 0)
@@ -71,7 +92,15 @@ function seed() {
 
   return {
     user: null,
-    folders: [{ id: folderId, name: 'Clients', emoji: '\u{1F4BC}' }],
+    folders: [
+      {
+        id: folderId,
+        name: 'Clients',
+        emoji: '\u{1F4BC}',
+        ownerId: owner.id,
+        members: [owner, ali],
+      },
+    ],
     boards: [
       {
         id: boardId,
@@ -169,7 +198,13 @@ function reducer(state, action) {
       return { ...state, user: null }
 
     case 'addFolder': {
-      const folder = { id: uid('fold'), name: action.name, emoji: action.emoji ?? '\u{1F4C1}' }
+      const folder = {
+        id: uid('fold'),
+        name: action.name,
+        emoji: action.emoji ?? '\u{1F4C1}',
+        ownerId: state.user?.id ?? null,
+        members: state.user ? [{ ...state.user, role: 'owner' }] : [],
+      }
       return { ...state, folders: [...state.folders, folder] }
     }
 
@@ -257,16 +292,106 @@ function reducer(state, action) {
         cards: state.cards.filter((c) => c.listId !== action.listId),
       }
 
+    case 'addFolderMember': {
+      const folder = state.folders.find((f) => f.id === action.folderId)
+      if (!folder) return state
+      const email = (action.email ?? '').trim()
+      const name = (action.name ?? '').trim() || (email ? nameFromEmail(email) : '')
+      if (!name) return state
+
+      const taken = folderMembers(folder).some(
+        (m) =>
+          m.name.toLowerCase() === name.toLowerCase() ||
+          (email && m.email?.toLowerCase() === email.toLowerCase()),
+      )
+      if (taken) return state
+
+      const member = {
+        id: uid('user'),
+        name,
+        email: email || undefined,
+        color: colorForName(email || name),
+        role: action.role ?? 'editor',
+      }
+
+      return {
+        ...state,
+        folders: state.folders.map((f) =>
+          f.id === action.folderId ? { ...f, members: [...folderMembers(f), member] } : f,
+        ),
+        // everyone in a folder is on that folder's boards
+        boards: state.boards.map((b) =>
+          b.folderId === action.folderId && !b.members.some((m) => m.id === member.id)
+            ? { ...b, members: [...b.members, member] }
+            : b,
+        ),
+      }
+    }
+
+    case 'setFolderMemberRole':
+      return {
+        ...state,
+        folders: state.folders.map((f) =>
+          f.id === action.folderId
+            ? {
+                ...f,
+                members: folderMembers(f).map((m) =>
+                  m.id === action.memberId ? { ...m, role: action.role } : m,
+                ),
+              }
+            : f,
+        ),
+        boards: state.boards.map((b) =>
+          b.folderId === action.folderId
+            ? {
+                ...b,
+                members: b.members.map((m) =>
+                  m.id === action.memberId ? { ...m, role: action.role } : m,
+                ),
+              }
+            : b,
+        ),
+      }
+
+    case 'removeFolderMember': {
+      const boardIds = state.boards.filter((b) => b.folderId === action.folderId).map((b) => b.id)
+      return {
+        ...state,
+        folders: state.folders.map((f) =>
+          f.id === action.folderId
+            ? { ...f, members: folderMembers(f).filter((m) => m.id !== action.memberId) }
+            : f,
+        ),
+        boards: state.boards.map((b) =>
+          b.folderId === action.folderId
+            ? { ...b, members: b.members.filter((m) => m.id !== action.memberId) }
+            : b,
+        ),
+        cards: state.cards.map((c) =>
+          boardIds.includes(c.boardId) && c.assigneeId === action.memberId
+            ? { ...c, assigneeId: null }
+            : c,
+        ),
+      }
+    }
+
     case 'addMember': {
       const name = action.name.trim()
       if (!name) return state
       const board = state.boards.find((b) => b.id === action.boardId)
       if (!board) return state
-      if (board.members.some((m) => m.name.toLowerCase() === name.toLowerCase())) return state
+      const invitedEmail = action.email?.trim().toLowerCase()
+      const alreadyOnBoard = board.members.some(
+        (m) =>
+          m.name.toLowerCase() === name.toLowerCase() ||
+          (invitedEmail && m.email?.toLowerCase() === invitedEmail),
+      )
+      if (alreadyOnBoard) return state
       const member = {
         id: uid('user'),
         name,
-        color: colorForName(name),
+        email: action.email?.trim() || undefined,
+        color: colorForName(action.email?.trim() || name),
         role: action.role ?? 'editor',
       }
       return {
@@ -423,6 +548,22 @@ function reducer(state, action) {
       }
     }
 
+    case 'importFolder': {
+      const { folder, boards = [], cards = [] } = action.payload
+      if (!folder) return state
+      const exists = state.folders.some((f) => f.id === folder.id)
+      const boardIds = boards.map((b) => b.id)
+      return {
+        ...state,
+        folders: exists
+          ? state.folders.map((f) => (f.id === folder.id ? folder : f))
+          : [...state.folders, folder],
+        boards: [...state.boards.filter((b) => !boardIds.includes(b.id)), ...boards],
+        cards: [...state.cards.filter((c) => !boardIds.includes(c.boardId)), ...cards],
+        activeBoardId: boards[0]?.id ?? state.activeBoardId,
+      }
+    }
+
     case 'reset':
       return { ...seed(), user: state.user }
 
@@ -451,7 +592,8 @@ export function StoreProvider({ children }) {
     const code = new URLSearchParams(window.location.search).get('join')
     if (!code) return
     const payload = decodePayload(code)
-    if (payload?.board) dispatch({ type: 'importBoard', payload })
+    if (payload?.folder) dispatch({ type: 'importFolder', payload })
+    else if (payload?.board) dispatch({ type: 'importBoard', payload })
     window.history.replaceState({}, '', window.location.pathname)
   }, [])
 

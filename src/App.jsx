@@ -9,6 +9,7 @@ import Inbox from './components/Inbox'
 import Overview from './components/Overview'
 import CardModal from './components/CardModal'
 import InviteModal from './components/InviteModal'
+import FolderMembersModal from './components/FolderMembersModal'
 import { TopBar, BottomNav, Toasts, Sidebar, MobileMenu } from './components/Chrome'
 import { EmptyState, Button, Icon } from './components/ui'
 
@@ -18,6 +19,7 @@ export default function App() {
   const [openCardId, setOpenCardId] = useState(null)
   const [inviting, setInviting] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [manageFolderId, setManageFolderId] = useState(null)
   const [calendarOpen, setCalendarOpen] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches,
   )
@@ -91,10 +93,18 @@ export default function App() {
               />
             ))}
 
-          {view === 'boards' && <BoardsView onOpenBoard={openBoard} />}
+          {view === 'boards' && (
+            <BoardsView onOpenBoard={openBoard} onManageFolder={setManageFolderId} />
+          )}
           {view === 'planner' && <Planner onOpenCard={openCard} query={query} />}
           {view === 'inbox' && <Inbox onOpenCard={openCard} reminders={reminders} />}
-          {view === 'overview' && <Overview onOpenBoard={openBoard} onOpenCard={openCard} />}
+          {view === 'overview' && (
+            <Overview
+              onOpenBoard={openBoard}
+              onOpenCard={openCard}
+              onManageFolder={setManageFolderId}
+            />
+          )}
         </main>
       </div>
 
@@ -104,6 +114,13 @@ export default function App() {
 
       {openCardId && <CardModal cardId={openCardId} onClose={() => setOpenCardId(null)} />}
       {inviting && board && <InviteModal board={board} onClose={() => setInviting(false)} />}
+
+      {manageFolderId && state.folders.some((f) => f.id === manageFolderId) && (
+        <FolderMembersModal
+          folder={state.folders.find((f) => f.id === manageFolderId)}
+          onClose={() => setManageFolderId(null)}
+        />
+      )}
     </div>
   )
 }

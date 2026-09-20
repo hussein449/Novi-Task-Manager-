@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Icon, Button, AvatarStack, Modal, Field, inputClass, EmptyState } from './ui'
-import { useStore, ACCENTS, accentOf, cardsOfBoard } from '../store'
+import { useStore, ACCENTS, accentOf, cardsOfBoard, folderMembers, canManageFolder } from '../store'
 
 const EMOJIS = ['💼', '🎯', '🚀', '🎨', '📈', '🧩', '🏠', '📁']
 
@@ -162,7 +162,7 @@ function BoardCard({ board, onOpen }) {
   )
 }
 
-export default function BoardsView({ onOpenBoard }) {
+export default function BoardsView({ onOpenBoard, onManageFolder }) {
   const { state, dispatch } = useStore()
   const [newBoardFolder, setNewBoardFolder] = useState(null)
   const [newFolder, setNewFolder] = useState(false)
@@ -208,7 +208,24 @@ export default function BoardsView({ onOpenBoard }) {
                 <span className="text-xs font-medium text-ink-3 bg-muted rounded-full px-2 py-0.5">
                   {boards.length}
                 </span>
-                <div className="ml-auto flex items-center gap-1">
+
+                <button
+                  onClick={() => onManageFolder(folder.id)}
+                  className="ml-auto inline-flex items-center gap-2 rounded-lg border border-line-strong bg-surface px-2 py-1 text-xs font-medium text-ink-2 hover:bg-muted hover:text-ink transition"
+                  title={`People in ${folder.name}`}
+                >
+                  {folderMembers(folder).length > 0 ? (
+                    <AvatarStack members={folderMembers(folder)} size={20} max={3} />
+                  ) : (
+                    <Icon name="users" className="w-4 h-4" />
+                  )}
+                  <span className="hidden xs:inline">
+                    {folderMembers(folder).length || 'Add'} {folderMembers(folder).length === 1 ? 'person' : 'people'}
+                  </span>
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {canManageFolder(folder, state.user) && (
                   <button
                     onClick={() => {
                       const value = window.prompt('Rename folder', folder.name)
@@ -220,6 +237,8 @@ export default function BoardsView({ onOpenBoard }) {
                   >
                     <Icon name="pencil" className="w-4 h-4" />
                   </button>
+                  )}
+                  {canManageFolder(folder, state.user) && (
                   <button
                     onClick={() => {
                       if (window.confirm(`Delete "${folder.name}" and its ${boards.length} board(s)?`)) {
@@ -232,6 +251,7 @@ export default function BoardsView({ onOpenBoard }) {
                   >
                     <Icon name="trash" className="w-4 h-4" />
                   </button>
+                  )}
                 </div>
               </header>
 

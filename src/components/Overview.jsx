@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Icon, Avatar, EmptyState } from './ui'
-import { useStore, accentOf, ROLES, roleOf } from '../store'
+import { useStore, accentOf, ROLES, roleOf, folderMembers, folderRoleOf } from '../store'
 import { formatDue, dueState } from '../lib/utils'
 
 const Stat = ({ label, value, tone = 'text-ink', icon }) => (
@@ -40,9 +40,15 @@ const summarise = (cards) => {
   }
 }
 
-/** Per-person totals inside one folder, so workload is read in context. */
-const peopleIn = (boards, cards) => {
+/**
+ * Per-person totals inside one folder. Folder membership comes first, since
+ * that is what grants access; anyone left on a board alone is still listed.
+ */
+const peopleIn = (folder, boards, cards) => {
   const map = new Map()
+  folderMembers(folder).forEach((m) =>
+    map.set(m.id, { member: m, role: folderRoleOf(folder, m.id), open: 0, done: 0, overdue: 0 }),
+  )
   boards.forEach((b) =>
     b.members.forEach((m) => {
       if (!map.has(m.id)) map.set(m.id, { member: m, role: roleOf(b, m.id), open: 0, done: 0, overdue: 0 })
@@ -60,7 +66,7 @@ const peopleIn = (boards, cards) => {
   return [...map.values()].sort((a, b) => b.open - a.open || b.done - a.done)
 }
 
-export default function Overview({ onOpenBoard, onOpenCard }) {
+export default function Overview({ onOpenBoard, onOpenCard, onManageFolder }) {
   const { state } = useStore()
 
   const all = useMemo(() => summarise(state.cards), [state.cards])
@@ -71,7 +77,13 @@ export default function Overview({ onOpenBoard, onOpenCard }) {
         const boards = state.boards.filter((b) => b.folderId === folder.id)
         const ids = boards.map((b) => b.id)
         const cards = state.cards.filter((c) => ids.includes(c.boardId))
-        return { folder, boards, cards, stats: summarise(cards), people: peopleIn(boards, cards) }
+        return {
+          folder,
+          boards,
+          cards,
+          stats: summarise(cards),
+          people: peopleIn(folder, boards, cards),
+        }
       }),
     [state.folders, state.boards, state.cards],
   )
@@ -171,9 +183,17 @@ export default function Overview({ onOpenBoard, onOpenCard }) {
               </div>
 
               <div className="p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-ink-3 px-1 mb-2">
-                  People in this folder
-                </p>
+                <div className="flex items-center gap-2 px-1 mb-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-3">
+                    People in this folder
+                  </p>
+                  <button
+                    onClick={() => onManageFolder(folder.id)}
+                    className="ml-auto text-xs font-medium text-primary hover:underline"
+                  >
+                    Manage
+                  </button>
+                </div>
                 {people.length === 0 ? (
                   <p className="text-sm text-ink-3 px-1 py-2">Nobody has been added yet.</p>
                 ) : (
@@ -183,7 +203,10 @@ export default function Overview({ onOpenBoard, onOpenCard }) {
                         <Avatar user={member} size={26} />
                         <span className="min-w-0">
                           <span className="block text-sm text-ink truncate">{member.name}</span>
-                          <span className="block text-xs text-ink-3">{ROLES[role]?.label ?? 'Member'}</span>
+                          <span className="block text-xs text-ink-3 truncate">
+                            {ROLES[role]?.label ?? 'Member'}
+                            {member.email ? ` · ${member.email}` : ''}
+                          </span>
                         </span>
                         <span className="ml-auto flex items-center gap-2 text-xs tabular-nums shrink-0">
                           {overdue > 0 && (

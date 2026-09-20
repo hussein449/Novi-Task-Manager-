@@ -21,6 +21,19 @@ export const initials = (name = '') =>
     .join('')
     .toUpperCase() || '?'
 
+/* ---------- people ---------- */
+
+// Deliberately loose: enough to catch a typo, not to police valid addresses.
+export const isEmail = (value = '') => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value.trim())
+
+export const nameFromEmail = (email = '') =>
+  email
+    .split('@')[0]
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join(' ') || email
+
 /* ---------- dates ---------- */
 
 const DAY = 86400000

@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react'
 import { Modal, Field, inputClass, Button, Avatar, Icon } from './ui'
 import { useStore, cardsOfBoard, ROLES, roleOf, canManage } from '../store'
-import { encodePayload } from '../lib/utils'
+import { encodePayload, isEmail, nameFromEmail } from '../lib/utils'
 
 export default function InviteModal({ board, onClose }) {
   const { state, dispatch } = useStore()
   const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
   const [role, setRole] = useState('editor')
+  const [error, setError] = useState('')
   const [copied, setCopied] = useState('')
   const mayManage = canManage(board, state.user)
 
@@ -34,23 +36,56 @@ export default function InviteModal({ board, onClose }) {
 
   const add = (e) => {
     e.preventDefault()
-    const value = name.trim()
-    if (!value) return
-    dispatch({ type: 'addMember', boardId: board.id, name: value, role })
+    const cleanName = name.trim()
+    const cleanEmail = email.trim()
+    if (!cleanName && !cleanEmail) {
+      setError('Add a name or an email address.')
+      return
+    }
+    if (cleanEmail && !isEmail(cleanEmail)) {
+      setError('That email address does not look right.')
+      return
+    }
+    dispatch({
+      type: 'addMember',
+      boardId: board.id,
+      name: cleanName || nameFromEmail(cleanEmail),
+      email: cleanEmail,
+      role,
+    })
     setName('')
+    setEmail('')
+    setError('')
   }
 
   return (
     <Modal open onClose={onClose} title="Share board" subtitle={board.name}>
       {mayManage ? (
-        <form onSubmit={add} className="flex flex-wrap gap-2 items-end">
-          <div className="flex-1 min-w-40">
-            <Field label="Invite by name">
+        <form noValidate onSubmit={add} className="flex flex-wrap gap-2 items-end">
+          <div className="flex-1 min-w-32">
+            <Field label="Name">
               <input
                 autoFocus
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value)
+                  setError('')
+                }}
                 placeholder="e.g. Ali"
+                className={inputClass}
+              />
+            </Field>
+          </div>
+          <div className="flex-1 min-w-40">
+            <Field label="Email">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                  setError('')
+                }}
+                placeholder="ali@teka.co"
                 className={inputClass}
               />
             </Field>
@@ -63,10 +98,11 @@ export default function InviteModal({ board, onClose }) {
               </select>
             </Field>
           </div>
-          <Button type="submit" disabled={!name.trim()} className="mb-0.5">
+          <Button type="submit" disabled={!name.trim() && !email.trim()} className="mb-0.5">
             <Icon name="plus" className="w-4 h-4" />
             Invite
           </Button>
+          {error && <p className="w-full text-xs text-danger">{error}</p>}
         </form>
       ) : (
         <p className="rounded-lg bg-muted px-3 py-2 text-sm text-ink-2">
@@ -74,7 +110,12 @@ export default function InviteModal({ board, onClose }) {
         </p>
       )}
 
-      <p className="mt-4 text-xs text-ink-3">
+      <p className="mt-3 text-xs text-ink-3">
+        Adding someone here puts them on this board only. To give access to every board of a
+        client or project, add them to its folder from <strong className="font-medium text-ink-2">Projects</strong>.
+      </p>
+
+      <p className="mt-2 text-xs text-ink-3">
         <strong className="text-ink-2 font-medium">Editor</strong> {ROLES.editor.hint.toLowerCase()}.{' '}
         <strong className="text-ink-2 font-medium">Viewer</strong> {ROLES.viewer.hint.toLowerCase()}.
       </p>
@@ -84,11 +125,16 @@ export default function InviteModal({ board, onClose }) {
         <div className="space-y-0.5 max-h-56 overflow-y-auto thin-scroll">
           {board.members.map((m) => (
             <div key={m.id} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-muted">
-              <Avatar user={m} size={28} />
-              <span className="text-sm text-ink truncate">{m.name}</span>
-              {state.user?.id === m.id && <span className="text-xs text-ink-3 shrink-0">you</span>}
+              <Avatar user={m} size={30} />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm text-ink truncate">
+                  {m.name}
+                  {state.user?.id === m.id && <span className="text-xs text-ink-3"> · you</span>}
+                </span>
+                {m.email && <span className="block text-xs text-ink-3 truncate">{m.email}</span>}
+              </span>
 
-              <div className="ml-auto flex items-center gap-1.5 shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0">
                 {roleOf(board, m.id) === 'owner' || !mayManage ? (
                   <span className="rounded-md border border-line bg-surface px-2 py-1 text-xs font-medium text-ink-2">
                     {ROLES[roleOf(board, m.id)]?.label}

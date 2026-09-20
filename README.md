@@ -10,13 +10,20 @@ the browser, so there is no backend to run.
 - **Name-based login + invites** — sign in with just your name. Invite people to a
   board by name, or send an invite link that carries the whole board (lists, cards,
   members) to another browser.
-- **Folders → boards → cards** — group boards in folders, one per client or project.
+- **Folders → boards → tasks** — group boards in folders, one per client or project.
+- **People per folder** — each folder has its own member list, opened from Projects
+  or from the Overview. Add someone by name, by email, or both (an email on its own
+  becomes their name), give them a role, see their open and done counts, or remove
+  them. Folder membership is what grants access: adding someone puts them on every
+  board in that folder, changing their role changes it everywhere in the folder, and
+  removing them takes them off every board and unassigns their tasks. Each folder
+  also has its own invite link carrying the folder with all its boards and tasks.
 - **Three statuses out of the box** — To Do / Doing / Done. The board is a task
   list grouped by status: one row per task with its deadline, priority and
   assignee in aligned columns, and a group header you can collapse. Nothing
   scrolls sideways at any width. Statuses can be renamed, added or deleted, and
   moving a task into the last one marks it complete.
-- **Roles** — every person on a board is an owner, an editor or a viewer. Editors
+- **Roles** — every person on a folder or board is an owner, an editor or a viewer. Editors
   add and change tasks; viewers can read the board but get no add buttons, no drag
   handles and a read-only task dialog; only the owner invites people, sets their
   role, renames the board or changes its colour.
@@ -74,7 +81,8 @@ src/
     Planner.jsx          deadlines grouped by time bucket
     Inbox.jsx            fired reminders and my open cards
     Overview.jsx         cross-board stats
-    InviteModal.jsx      invite by name + invite link
+    InviteModal.jsx          invite to one board, by name or email, + invite link
+    FolderMembersModal.jsx   a folder's people: add, set roles, remove, invite link
     Chrome.jsx           top bar, sidebar, mobile menu and nav, toasts
     ui.jsx               icons, avatars, modal, buttons
 ```
@@ -96,8 +104,9 @@ appearing mid-drag resizes the window, and dnd-kit cancels a drag on resize.
 
 ### Invite links
 
-An invite link is `?join=<code>`, where the code is a URL-safe base64 of the board
-and its cards. Opening the link imports that board into the recipient's workspace.
+An invite link is `?join=<code>`, where the code is a URL-safe base64 payload: a
+folder with its boards and tasks, or a single board with its tasks. Opening the
+link imports it into the recipient's workspace.
 Because storage is local, this copies the board rather than syncing it live — a
 backend would be the next step if you want real-time collaboration.
 
