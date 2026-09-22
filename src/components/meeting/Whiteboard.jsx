@@ -90,6 +90,8 @@ export default function Whiteboard({ meeting, board, onClose }) {
   const zoomRef = useRef(zoom)
   zoomRef.current = zoom
   const gesture = useRef(null)
+  // Set by the click that places a note or text box; see onSurfaceMouseDown.
+  const placing = useRef(0)
   const saveTimers = useRef(new Map())
   const history = useRef([])
   const busyIds = useRef(new Set()) // being dragged or typed in: ignore their echoes
@@ -451,6 +453,27 @@ export default function Whiteboard({ meeting, board, onClose }) {
     if (hit.length) removeItems(hit.map((i) => i.id))
   }
 
+  /*
+   * A real click is pointerdown, then mousedown, then click. Placing a note or
+   * text box happens on pointerdown and focuses its text field — but the
+   * browser's own mousedown that follows moves focus to wherever was clicked,
+   * which is the canvas, so the new field blurred before you could type, and an
+   * empty text box deletes itself on blur. Cancelling that mousedown keeps the
+   * focus where we put it. On touch screens the mousedown arrives only after
+   * the finger lifts, hence the short window instead of a single flag.
+   */
+  const holdFocus = (e) => {
+    e.preventDefault()
+    placing.current = Date.now()
+  }
+
+  const onSurfaceMouseDown = (e) => {
+    if (Date.now() - placing.current < 800) {
+      e.preventDefault()
+      placing.current = 0
+    }
+  }
+
   const onSurfaceDown = (e) => {
     if (e.button !== undefined && e.button !== 0) return
     const p = toCanvas(e)
@@ -492,6 +515,7 @@ export default function Whiteboard({ meeting, board, onClose }) {
     }
 
     if (t === 'note') {
+      holdFocus(e)
       const item = create({
         kind: 'note',
         x: Math.round(p.x - NOTE_W / 2),
@@ -507,6 +531,7 @@ export default function Whiteboard({ meeting, board, onClose }) {
     }
 
     if (t === 'text') {
+      holdFocus(e)
       const item = create({
         kind: 'text',
         x: Math.round(p.x),
@@ -521,6 +546,7 @@ export default function Whiteboard({ meeting, board, onClose }) {
     }
 
     if (t === 'frame') {
+      holdFocus(e)
       const item = create({
         kind: 'frame',
         x: Math.round(p.x),
@@ -947,6 +973,7 @@ export default function Whiteboard({ meeting, board, onClose }) {
           <div
             ref={surfaceRef}
             onPointerDown={onSurfaceDown}
+            onMouseDown={onSurfaceMouseDown}
             onPointerMove={onMove}
             onPointerUp={onUp}
             onPointerCancel={onUp}
