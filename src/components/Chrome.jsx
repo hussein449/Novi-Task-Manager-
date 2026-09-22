@@ -9,6 +9,7 @@ const VIEW_TITLES = {
   boards: 'Projects',
   overview: 'Overview',
   people: 'People',
+  meetings: 'Meeting boards',
 }
 
 /* ---------------- top bar ---------------- */
@@ -231,10 +232,12 @@ export function TopBar({
 
 /* ---------------- mobile bottom nav ---------------- */
 
+// Inbox is one tap away on the bell in the top bar, so it gives its slot here
+// to Meetings.
 const NAV = [
   { key: 'board', label: 'Board', icon: 'board' },
   { key: 'planner', label: 'Planner', icon: 'planner' },
-  { key: 'inbox', label: 'Inbox', icon: 'inbox' },
+  { key: 'meetings', label: 'Meetings', icon: 'note' },
   { key: 'overview', label: 'Overview', icon: 'overview' },
   { key: 'boards', label: 'Projects', icon: 'folder' },
   { key: 'people', label: 'People', icon: 'users' },
@@ -257,9 +260,7 @@ export function BottomNav({ view, onChange, unread }) {
             >
               <Icon name={item.icon} className="w-5 h-5" />
               {item.label}
-              {item.key === 'inbox' && unread > 0 && (
-                <span className="absolute top-1.5 right-1/2 translate-x-3.5 w-2 h-2 rounded-full bg-danger" />
-              )}
+
             </button>
           )
         })}
@@ -326,6 +327,7 @@ function SidebarContent({ activeBoardId, onOpenBoard, view, onChangeView, onClos
     { key: 'planner', label: 'Planner', icon: 'planner' },
     { key: 'inbox', label: 'Inbox', icon: 'inbox' },
     { key: 'boards', label: 'All projects', icon: 'folder' },
+    { key: 'meetings', label: 'Meeting boards', icon: 'note' },
     { key: 'people', label: 'People', icon: 'users' },
   ]
 

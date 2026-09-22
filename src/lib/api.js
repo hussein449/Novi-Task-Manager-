@@ -34,6 +34,15 @@ const cardFrom = (row) => ({
   createdAt: row.created_at,
 })
 
+export const meetingFrom = (row) => ({
+  id: row.id,
+  boardId: row.board_id,
+  title: row.title,
+  createdBy: clean(row.created_by),
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
 /* ---------------- reading ---------------- */
 
 /** Marks invitations that were waiting for this address as accepted. */
@@ -43,16 +52,19 @@ export const acceptInvitations = async () => {
 }
 
 export async function loadWorkspace() {
-  const [folders, folderMembers, boards, boardMembers, lists, cards] = await Promise.all([
+  const [folders, folderMembers, boards, boardMembers, lists, cards, meetings] = await Promise.all([
     supabase.from('folders').select('*').order('created_at'),
     supabase.from('folder_members').select('*'),
     supabase.from('boards').select('*').order('created_at'),
     supabase.from('board_members').select('*'),
     supabase.from('lists').select('*').order('sort_order'),
     supabase.from('cards').select('*').order('sort_order'),
+    supabase.from('meeting_boards').select('*').order('updated_at', { ascending: false }),
   ])
 
-  const failed = [folders, folderMembers, boards, boardMembers, lists, cards].find((r) => r.error)
+  const failed = [folders, folderMembers, boards, boardMembers, lists, cards, meetings].find(
+    (r) => r.error,
+  )
   if (failed) throw failed.error
 
   const membersByFolder = new Map()
@@ -103,6 +115,7 @@ export async function loadWorkspace() {
     folders: shapedFolders,
     boards: shapedBoards,
     cards: cards.data.map(cardFrom),
+    meetings: meetings.data.map(meetingFrom),
   }
 }
 
@@ -325,4 +338,84 @@ export const sendInvite = async ({ scope, id, email, name, role, label }) => {
   }
 
   return data
+}
+
+/* ---------------- meeting boards ---------------- */
+
+export const createMeeting = async ({ id, boardId, title, createdBy }) => {
+  const { error } = await supabase
+    .from('meeting_boards')
+    .insert({ id, board_id: boardId, title, created_by: createdBy })
+  if (error) throw error
+}
+
+export const renameMeeting = async (id, title) => {
+  const { error } = await supabase.from('meeting_boards').update({ title }).eq('id', id)
+  if (error) throw error
+}
+
+export const deleteMeeting = async (id) => {
+  const { error } = await supabase.from('meeting_boards').delete().eq('id', id)
+  if (error) throw error
+}
+
+export const itemFrom = (row) => ({
+  id: row.id,
+  meetingId: row.meeting_id,
+  kind: row.kind,
+  x: row.x,
+  y: row.y,
+  w: row.w,
+  h: row.h,
+  color: row.color,
+  text: row.text ?? '',
+  points: row.points ?? null,
+  size: row.size,
+  z: row.z ?? 0,
+  createdBy: clean(row.created_by),
+  updatedAt: row.updated_at,
+})
+
+export const loadMeetingItems = async (meetingId) => {
+  const { data, error } = await supabase
+    .from('meeting_items')
+    .select('*')
+    .eq('meeting_id', meetingId)
+    .order('z')
+  if (error) throw error
+  return data.map(itemFrom)
+}
+
+/**
+ * Insert or update one note, text box or stroke. `stamp` is the updated_at the
+ * caller will recognise when the realtime echo of this write comes back.
+ */
+export const saveMeetingItem = async (item, stamp = new Date().toISOString()) => {
+  const { error } = await supabase.from('meeting_items').upsert({
+    id: item.id,
+    meeting_id: item.meetingId,
+    kind: item.kind,
+    x: item.x,
+    y: item.y,
+    w: item.w ?? null,
+    h: item.h ?? null,
+    color: item.color,
+    text: item.text ?? '',
+    points: item.points ?? null,
+    size: item.size ?? null,
+    z: item.z ?? 0,
+    created_by: item.createdBy,
+    updated_at: stamp,
+  })
+  if (error) throw error
+}
+
+export const deleteMeetingItem = async (id) => {
+  const { error } = await supabase.from('meeting_items').delete().eq('id', id)
+  if (error) throw error
+}
+
+export const clearMeetingItems = async (meetingId) => {
+  const { error } = await supabase.from('meeting_items').delete().eq('meeting_id', meetingId)
+  if (error) throw error
 }

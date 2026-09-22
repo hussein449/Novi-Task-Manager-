@@ -90,6 +90,7 @@ const initialState = {
   folders: [],
   boards: [],
   cards: [],
+  meetings: [],
   activeBoardId: null,
   notifications: [],
 }
@@ -120,15 +121,55 @@ function reducer(state, action) {
         folders: action.user ? state.folders : [],
         boards: action.user ? state.boards : [],
         cards: action.user ? state.cards : [],
+        meetings: action.user ? state.meetings : [],
       }
     }
 
     case 'hydrate': {
-      const { folders, boards, cards } = action.data
+      const { folders, boards, cards, meetings = [] } = action.data
       const activeBoardId = boards.some((b) => b.id === state.activeBoardId)
         ? state.activeBoardId
         : (boards[0]?.id ?? null)
-      return { ...state, folders, boards, cards, activeBoardId, status: 'ready' }
+      return { ...state, folders, boards, cards, meetings, activeBoardId, status: 'ready' }
+    }
+
+    /* meeting boards */
+
+    case 'addMeeting':
+      return {
+        ...state,
+        meetings: [
+          {
+            id: action.id,
+            boardId: action.boardId,
+            title: action.title,
+            createdBy: state.user.id,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          ...state.meetings,
+        ],
+      }
+
+    case 'renameMeeting':
+      return {
+        ...state,
+        meetings: state.meetings.map((m) => (m.id === action.id ? { ...m, title: action.title } : m)),
+      }
+
+    case 'deleteMeeting':
+    case 'meetingRemoved':
+      return { ...state, meetings: state.meetings.filter((m) => m.id !== action.id) }
+
+    // someone (maybe us) changed a meeting board: patch it in place, newest first
+    case 'meetingUpserted': {
+      const rest = state.meetings.filter((m) => m.id !== action.meeting.id)
+      return {
+        ...state,
+        meetings: [action.meeting, ...rest].sort((a, b) =>
+          (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''),
+        ),
+      }
     }
 
     case 'setActiveBoard':
@@ -201,6 +242,7 @@ function reducer(state, action) {
         ...state,
         boards: state.boards.filter((b) => b.id !== action.id),
         cards: state.cards.filter((c) => c.boardId !== action.id),
+        meetings: state.meetings.filter((m) => m.boardId !== action.id),
         activeBoardId: state.activeBoardId === action.id ? null : state.activeBoardId,
       }
 
@@ -480,7 +522,7 @@ function reducer(state, action) {
 
 /* ---------------- writing through to the database ---------------- */
 
-const newId = () =>
+export const newId = () =>
   typeof crypto !== 'undefined' && crypto.randomUUID
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -491,6 +533,7 @@ function prepare(action) {
     case 'addFolder':
     case 'addList':
     case 'addCard':
+    case 'addMeeting':
       return { ...action, id: action.id ?? newId() }
     case 'addBoard':
       return {
@@ -625,6 +668,20 @@ async function persist(action, before, after) {
     case 'markNotified':
       return api.updateCard(action.id, { notifiedAt: Date.now() })
 
+    case 'addMeeting':
+      return api.createMeeting({
+        id: action.id,
+        boardId: action.boardId,
+        title: action.title,
+        createdBy: user.email,
+      })
+
+    case 'renameMeeting':
+      return api.renameMeeting(action.id, action.title)
+
+    case 'deleteMeeting':
+      return api.deleteMeeting(action.id)
+
     default:
       return undefined
   }
@@ -719,6 +776,16 @@ export function StoreProvider({ children }) {
     const channel = supabase.channel(`workspace-${userId}`)
     ;['folders', 'folder_members', 'boards', 'board_members', 'lists', 'cards'].forEach((table) => {
       channel.on('postgres_changes', { event: '*', schema: 'public', table }, nudge)
+    })
+
+    // Every stroke on a meeting board bumps that board's updated_at. Reloading
+    // the whole workspace for each one would be wasteful, so apply it in place.
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'meeting_boards' }, (payload) => {
+      if (payload.eventType === 'DELETE') {
+        if (payload.old?.id) localDispatch({ type: 'meetingRemoved', id: payload.old.id })
+      } else if (payload.new) {
+        localDispatch({ type: 'meetingUpserted', meeting: api.meetingFrom(payload.new) })
+      }
     })
     channel.subscribe()
 

@@ -8,6 +8,8 @@ import Planner from './components/Planner'
 import Inbox from './components/Inbox'
 import Overview from './components/Overview'
 import People from './components/People'
+import Meetings from './components/Meetings'
+import Whiteboard from './components/meeting/Whiteboard'
 import CardModal from './components/CardModal'
 import InviteModal from './components/InviteModal'
 import FolderMembersModal from './components/FolderMembersModal'
@@ -52,6 +54,7 @@ export default function App() {
   const [inviting, setInviting] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [manageFolderId, setManageFolderId] = useState(null)
+  const [openMeetingId, setOpenMeetingId] = useState(null)
   const [calendarOpen, setCalendarOpen] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches,
   )
@@ -151,6 +154,7 @@ export default function App() {
           {view === 'planner' && <Planner onOpenCard={openCard} query={query} />}
           {view === 'inbox' && <Inbox onOpenCard={openCard} reminders={reminders} />}
           {view === 'people' && <People onManageFolder={setManageFolderId} />}
+          {view === 'meetings' && <Meetings onOpenMeeting={setOpenMeetingId} />}
           {view === 'overview' && (
             <Overview
               onOpenBoard={openBoard}
@@ -167,6 +171,19 @@ export default function App() {
 
       {openCardId && <CardModal cardId={openCardId} onClose={() => setOpenCardId(null)} />}
       {inviting && board && <InviteModal board={board} onClose={() => setInviting(false)} />}
+
+      {(() => {
+        const meeting = state.meetings.find((m) => m.id === openMeetingId)
+        const project = meeting && state.boards.find((b) => b.id === meeting.boardId)
+        return meeting && project ? (
+          <Whiteboard
+            key={meeting.id}
+            meeting={meeting}
+            board={project}
+            onClose={() => setOpenMeetingId(null)}
+          />
+        ) : null
+      })()}
 
       {manageFolderId && state.folders.some((f) => f.id === manageFolderId) && (
         <FolderMembersModal

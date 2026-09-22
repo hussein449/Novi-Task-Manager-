@@ -26,6 +26,12 @@ and per-folder teams. React 18 + Vite + Tailwind CSS v4 on the front, Supabase
   in-app toasts and desktop notifications.
 - **Deadline calendar** — a panel beside the board, with a dot per person on
   each day and a filter by person.
+- **Meeting boards** — a whiteboard for each meeting, filed under a project:
+  sticky notes, text, pen and highlighter in nine colours, plus frames to group
+  ideas. One tap lays out *Main ideas / Brainstorm / Action items*. Everyone on the
+  project sees what others write as it happens, with their avatars in the corner,
+  and any note can be sent straight to the project's task list. Undo, zoom, and
+  finger drawing on a phone all work.
 - **Planner / Inbox / Overview** — everything due in order, the reminders that
   fired, and a per-folder breakdown of progress and workload.
 - **Live** — two people on the same board see each other's changes.
@@ -143,6 +149,9 @@ src/
     InvitePanel.jsx        invite by email, with the send-it-yourself fallback
     FolderMembersModal.jsx a folder's people
     InviteModal.jsx        one project's people
+    Meetings.jsx           meeting boards grouped by folder and project
+    meeting/Whiteboard.jsx the whiteboard: tools, colours, live sync, undo
+    meeting/palette.js     colours, sizes, stroke smoothing and hit testing
     Planner / Inbox / Overview
     Chrome.jsx             top bar, sidebar, mobile menu and nav, toasts
     ui.jsx                 icons, avatars, modal, buttons
@@ -154,6 +163,21 @@ supabase/
 State is optimistic: a change lands in the interface immediately and is written
 straight after. If the write fails the error is shown and the server's version
 is loaded back, so what you see is never a change that did not happen.
+
+### Meeting boards and live editing
+
+Every note, stroke and frame is its own row in `meeting_items`, so two people
+writing at once each save their own items rather than overwriting a shared
+document. A meeting inherits its project's access through `meeting_role()`, so
+viewers can watch a board but not write on it.
+
+Two details keep concurrent editing honest. Writes to a single item are
+**queued**: placing a note saves it and typing saves it again a moment later, and
+two requests in flight for the same row could otherwise land out of order and
+leave the empty version. And the realtime **echo of your own write is ignored**:
+by the time it arrives you may have typed more, and applying it would roll the
+note back. Deletes are treated the same way, so undoing an erase is not undone by
+the echo of the erase.
 
 ### Drag and drop
 
