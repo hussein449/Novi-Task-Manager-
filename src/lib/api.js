@@ -30,6 +30,9 @@ const cardFrom = (row) => ({
   priority: row.priority ?? 'medium',
   done: Boolean(row.done),
   day: row.day ?? null,
+  price: Number(row.price ?? 0),
+  paid: Boolean(row.paid),
+  paidAt: row.paid_at,
   notifiedAt: row.notified_at ? new Date(row.notified_at).getTime() : null,
   sortOrder: row.sort_order ?? 0,
   createdAt: row.created_at,
@@ -268,6 +271,7 @@ export const updateCard = async (id, patch) => {
   if ('priority' in patch) row.priority = patch.priority
   if ('done' in patch) row.done = patch.done
   if ('day' in patch) row.day = patch.day
+  if ('price' in patch) row.price = patch.price
   if ('listId' in patch) row.list_id = patch.listId
   if ('notifiedAt' in patch) {
     row.notified_at = patch.notifiedAt ? new Date(patch.notifiedAt).toISOString() : null

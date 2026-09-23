@@ -198,6 +198,20 @@ export default function CardModal({ cardId, onClose }) {
             </div>
           </Field>
 
+          <Field label="Price" hint="Shows up on this project's Deliverables & Pricing page.">
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              disabled={!mayEdit}
+              value={draft?.price ?? 0}
+              onChange={(e) => setDraft({ ...draft, price: e.target.value })}
+              onBlur={() => patch({ price: Number(draft?.price) || 0 })}
+              placeholder="0.00"
+              className={inputClass}
+            />
+          </Field>
+
           {!mayEdit ? (
             <p className="rounded-lg bg-muted px-3 py-2 text-xs text-ink-2">
               You have view-only access to this board, so this task cannot be changed.

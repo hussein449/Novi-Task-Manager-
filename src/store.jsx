@@ -447,6 +447,9 @@ function reducer(state, action) {
             priority: 'medium',
             done: false,
             day: action.day ?? null,
+            price: 0,
+            paid: false,
+            paidAt: null,
             createdAt: new Date().toISOString(),
           },
         ],
@@ -565,15 +568,22 @@ function reducer(state, action) {
         ),
       }
 
-    case 'releasePayment':
+    case 'releasePayment': {
+      const paidAt = new Date().toISOString()
       return {
         ...state,
         deliverables: state.deliverables.map((d) =>
           d.boardId === action.boardId && d.status === 'completed' && d.approved && !d.paid
-            ? { ...d, paid: true, paidAt: new Date().toISOString() }
+            ? { ...d, paid: true, paidAt }
             : d,
         ),
+        cards: state.cards.map((c) =>
+          c.boardId === action.boardId && c.done && (c.price || 0) > 0 && !c.paid
+            ? { ...c, paid: true, paidAt }
+            : c,
+        ),
       }
+    }
 
     case 'deleteDeliverable':
       return { ...state, deliverables: state.deliverables.filter((d) => d.id !== action.id) }

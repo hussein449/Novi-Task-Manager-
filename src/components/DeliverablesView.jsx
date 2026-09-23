@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Icon, Button, Modal, Field, inputClass, EmptyState } from './ui'
-import { useStore, canEdit, deliverablesOfBoard } from '../store'
+import { Icon, Avatar, Button, Modal, Field, inputClass, EmptyState } from './ui'
+import { useStore, canEdit, deliverablesOfBoard, cardsOfBoard, memberFor } from '../store'
 
 const STATUS = {
   planned: { label: 'Planned', chip: 'bg-slate-50 text-slate-600 border-slate-200' },
@@ -249,6 +249,70 @@ function DeliverableRow({ deliverable, mayEdit, onDelete }) {
   )
 }
 
+/* ---------------- one task, priced ---------------- */
+
+function TaskPriceRow({ card, member, mayEdit }) {
+  const { dispatch } = useStore()
+  const [price, setPrice] = useState(String(card.price ?? 0))
+
+  useEffect(() => setPrice(String(card.price ?? 0)), [card.id, card.price])
+
+  const save = () => {
+    const value = Number(price) || 0
+    if (value !== (card.price ?? 0)) {
+      dispatch({ type: 'updateCard', id: card.id, patch: { price: value } })
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-line bg-surface p-3.5 shadow-xs flex flex-wrap items-center gap-3">
+      <Avatar user={member} size={28} />
+
+      <div className="min-w-0 flex-1">
+        <p className="font-medium text-ink truncate">{card.title}</p>
+        <p className="text-xs text-ink-3 mt-0.5 truncate">{member ? member.name : 'Unassigned'}</p>
+      </div>
+
+      <span
+        className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium ${
+          card.done
+            ? 'bg-success-soft text-success border-emerald-200'
+            : 'bg-muted text-ink-2 border-line'
+        }`}
+      >
+        {card.done ? 'Done' : 'Not done'}
+      </span>
+
+      {card.paid && (
+        <span className="inline-flex items-center gap-1 shrink-0 rounded-full bg-success-soft text-success px-2.5 py-1 text-xs font-medium">
+          <Icon name="check" className="w-3 h-3" />
+          Paid
+        </span>
+      )}
+
+      {mayEdit ? (
+        <div className="shrink-0 flex items-center gap-1">
+          <span className="text-ink-3 text-sm">$</span>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            onBlur={save}
+            placeholder="0.00"
+            className="w-24 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm text-right outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+          />
+        </div>
+      ) : (
+        <p className="shrink-0 font-semibold text-ink tabular-nums w-24 text-right">
+          {money(card.price, 'USD')}
+        </p>
+      )}
+    </div>
+  )
+}
+
 /* ---------------- the view ---------------- */
 
 export default function DeliverablesView({ board }) {
@@ -258,13 +322,30 @@ export default function DeliverablesView({ board }) {
 
   const items = useMemo(() => deliverablesOfBoard(state, board.id), [state, board.id])
 
+  // Every task on the board, pulled in automatically — not-done first, then
+  // done, so what's still owed shows before what's already finished.
+  const tasks = useMemo(
+    () => [...cardsOfBoard(state, board.id)].sort((a, b) => Number(a.done) - Number(b.done)),
+    [state, board.id],
+  )
+
   const totals = useMemo(() => {
-    const total = items.reduce((sum, d) => sum + (d.price || 0), 0)
-    const readyToPay = items
+    const deliverableTotal = items.reduce((sum, d) => sum + (d.price || 0), 0)
+    const deliverableReady = items
       .filter((d) => d.status === 'completed' && d.approved && !d.paid)
       .reduce((sum, d) => sum + (d.price || 0), 0)
-    return { total, readyToPay, currency: items[0]?.currency || 'USD' }
-  }, [items])
+
+    const taskTotal = tasks.reduce((sum, c) => sum + (c.price || 0), 0)
+    const taskReady = tasks
+      .filter((c) => c.done && !c.paid)
+      .reduce((sum, c) => sum + (c.price || 0), 0)
+
+    return {
+      total: deliverableTotal + taskTotal,
+      readyToPay: deliverableReady + taskReady,
+      currency: items[0]?.currency || 'USD',
+    }
+  }, [items, tasks])
 
   const releasePayment = () => {
     if (totals.readyToPay <= 0) return
@@ -274,35 +355,54 @@ export default function DeliverablesView({ board }) {
     if (ok) dispatch({ type: 'releasePayment', boardId: board.id })
   }
 
+  const showFooter = tasks.length > 0 || items.length > 0
+
   return (
     <div className="px-4 sm:px-6 max-w-3xl mx-auto w-full">
-      <div className="flex items-center justify-between gap-3 mb-5">
-        <div>
-          <h1 className="text-xl font-semibold text-ink tracking-tight">Deliverables & Pricing</h1>
-          <p className="text-sm text-ink-3 mt-0.5">Milestones for {board.name}, and what's owed for each.</p>
-        </div>
-        {mayEdit && (
-          <Button onClick={() => setAdding(true)}>
-            <Icon name="plus" className="w-4 h-4" />
-            <span className="hidden xs:inline">Add deliverable</span>
-          </Button>
-        )}
+      <div className="mb-5">
+        <h1 className="text-xl font-semibold text-ink tracking-tight">Deliverables & Pricing</h1>
+        <p className="text-sm text-ink-3 mt-0.5">Every task on {board.name}, and what's owed for it.</p>
       </div>
 
-      {items.length === 0 ? (
-        <EmptyState
-          icon="cash"
-          title="No deliverables yet"
-          hint={
-            mayEdit
-              ? 'Add a milestone with its price to start tracking billing here.'
-              : 'Nothing has been added here yet.'
-          }
-          action={mayEdit ? <Button onClick={() => setAdding(true)}>Add a deliverable</Button> : null}
-        />
-      ) : (
-        <>
-          <div className="space-y-3 pb-24">
+      <section className="mb-8">
+        <h2 className="text-sm font-semibold text-ink mb-3">Tasks</h2>
+        {tasks.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-line-strong text-sm text-ink-3 px-4 py-6 text-center">
+            No tasks on this board yet.
+          </p>
+        ) : (
+          <div className="space-y-2.5">
+            {tasks.map((card) => (
+              <TaskPriceRow
+                key={card.id}
+                card={card}
+                member={memberFor(board, card.assigneeId)}
+                mayEdit={mayEdit}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className={showFooter ? 'pb-24' : ''}>
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <h2 className="text-sm font-semibold text-ink">Other deliverables</h2>
+          {mayEdit && (
+            <Button size="sm" variant="secondary" onClick={() => setAdding(true)}>
+              <Icon name="plus" className="w-3.5 h-3.5" />
+              Add deliverable
+            </Button>
+          )}
+        </div>
+
+        {items.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-line-strong text-sm text-ink-3 px-4 py-6 text-center">
+            {mayEdit
+              ? 'Anything billable that isn’t a task — a flat fee, a retainer — goes here.'
+              : 'Nothing has been added here yet.'}
+          </p>
+        ) : (
+          <div className="space-y-3">
             {items.map((d) => (
               <DeliverableRow
                 key={d.id}
@@ -316,32 +416,34 @@ export default function DeliverablesView({ board }) {
               />
             ))}
           </div>
+        )}
+      </section>
 
-          <div className="sticky bottom-16 lg:bottom-0 z-10 -mx-4 sm:-mx-6 border-t border-line bg-surface/95 backdrop-blur px-4 sm:px-6 py-3.5 shadow-[0_-4px_12px_rgba(0,0,0,0.04)]">
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-              <div>
-                <p className="text-xs text-ink-3">Total project value</p>
-                <p className="text-base font-semibold text-ink tabular-nums">
-                  {money(totals.total, totals.currency)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-ink-3">Ready to pay</p>
-                <p className="text-base font-semibold text-success tabular-nums">
-                  {money(totals.readyToPay, totals.currency)}
-                </p>
-              </div>
-              <Button
-                variant="success"
-                className="ml-auto"
-                onClick={releasePayment}
-                disabled={totals.readyToPay <= 0}
-              >
-                Release Payment
-              </Button>
+      {showFooter && (
+        <div className="sticky bottom-16 lg:bottom-0 z-10 -mx-4 sm:-mx-6 border-t border-line bg-surface/95 backdrop-blur px-4 sm:px-6 py-3.5 shadow-[0_-4px_12px_rgba(0,0,0,0.04)]">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <div>
+              <p className="text-xs text-ink-3">Total project value</p>
+              <p className="text-base font-semibold text-ink tabular-nums">
+                {money(totals.total, totals.currency)}
+              </p>
             </div>
+            <div>
+              <p className="text-xs text-ink-3">Ready to pay</p>
+              <p className="text-base font-semibold text-success tabular-nums">
+                {money(totals.readyToPay, totals.currency)}
+              </p>
+            </div>
+            <Button
+              variant="success"
+              className="ml-auto"
+              onClick={releasePayment}
+              disabled={totals.readyToPay <= 0}
+            >
+              Release Payment
+            </Button>
           </div>
-        </>
+        </div>
       )}
 
       {adding && <AddDeliverableModal boardId={board.id} onClose={() => setAdding(false)} />}
