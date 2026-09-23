@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon, Avatar, AvatarStack, Button } from './ui'
+import FolderNotepadModal from './FolderNotepadModal'
 import { useStore, ACCENTS, accentOf, ROLES, roleOf, canManage } from '../store'
 
 const VIEW_TITLES = {
@@ -310,6 +311,18 @@ function SidebarContent({ activeBoardId, onOpenBoard, view, onChangeView, onClos
   const { state, dispatch } = useStore()
   const [adding, setAdding] = useState(null)
   const [name, setName] = useState('')
+  const [addMenuFor, setAddMenuFor] = useState(null)
+  const [notepadFolderId, setNotepadFolderId] = useState(null)
+  const addMenuRef = useRef(null)
+
+  useEffect(() => {
+    if (!addMenuFor) return undefined
+    const onClick = (e) => {
+      if (addMenuRef.current && !addMenuRef.current.contains(e.target)) setAddMenuFor(null)
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [addMenuFor])
 
   const submit = (e, folderId) => {
     e.preventDefault()
@@ -379,14 +392,40 @@ function SidebarContent({ activeBoardId, onOpenBoard, view, onChangeView, onClos
               <div className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-ink">
                 <span aria-hidden="true">{folder.emoji}</span>
                 <span className="truncate">{folder.name}</span>
-                <button
-                  onClick={() => setAdding(adding === folder.id ? null : folder.id)}
-                  className="ml-auto p-1 rounded-md text-ink-3 hover:text-primary hover:bg-muted transition"
-                  aria-label={`Add a board to ${folder.name}`}
-                  title="Add a board"
-                >
-                  <Icon name="plus" className="w-4 h-4" />
-                </button>
+                <div className="relative ml-auto" ref={addMenuFor === folder.id ? addMenuRef : null}>
+                  <button
+                    onClick={() => setAddMenuFor(addMenuFor === folder.id ? null : folder.id)}
+                    className="p-1 rounded-md text-ink-3 hover:text-primary hover:bg-muted transition"
+                    aria-label={`Add to ${folder.name}`}
+                    title="Add to this project"
+                  >
+                    <Icon name="plus" className="w-4 h-4" />
+                  </button>
+                  {addMenuFor === folder.id && (
+                    <div className="absolute right-0 top-7 z-40 w-36 rounded-lg border border-line bg-surface p-1 shadow-lg animate-pop">
+                      <button
+                        onClick={() => {
+                          setAddMenuFor(null)
+                          setAdding(folder.id)
+                        }}
+                        className="w-full flex items-center gap-2 text-left px-2.5 py-1.5 rounded-md text-sm text-ink hover:bg-muted transition"
+                      >
+                        <Icon name="board" className="w-3.5 h-3.5 text-ink-3" />
+                        Board
+                      </button>
+                      <button
+                        onClick={() => {
+                          setAddMenuFor(null)
+                          setNotepadFolderId(folder.id)
+                        }}
+                        className="w-full flex items-center gap-2 text-left px-2.5 py-1.5 rounded-md text-sm text-ink hover:bg-muted transition"
+                      >
+                        <Icon name="note" className="w-3.5 h-3.5 text-ink-3" />
+                        Notepad
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {adding === folder.id && (
@@ -428,6 +467,14 @@ function SidebarContent({ activeBoardId, onOpenBoard, view, onChangeView, onClos
           )
         })}
       </div>
+
+      {notepadFolderId &&
+        (() => {
+          const folder = state.folders.find((f) => f.id === notepadFolderId)
+          return folder ? (
+            <FolderNotepadModal folder={folder} onClose={() => setNotepadFolderId(null)} />
+          ) : null
+        })()}
     </div>
   )
 }
