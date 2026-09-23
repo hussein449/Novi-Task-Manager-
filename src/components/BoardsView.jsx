@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Icon, Button, AvatarStack, Modal, Field, inputClass, EmptyState } from './ui'
+import FolderNotepadModal from './FolderNotepadModal'
 import { useStore, ACCENTS, accentOf, cardsOfBoard, folderMembers, canManageFolder } from '../store'
 
 const EMOJIS = ['💼', '🎯', '🚀', '🎨', '📈', '🧩', '🏠', '📁']
@@ -166,6 +167,7 @@ export default function BoardsView({ onOpenBoard, onManageFolder }) {
   const { state, dispatch } = useStore()
   const [newBoardFolder, setNewBoardFolder] = useState(null)
   const [newFolder, setNewFolder] = useState(false)
+  const [notepadFolderId, setNotepadFolderId] = useState(null)
 
   const closeBoardModal = (reason) => {
     setNewBoardFolder(null)
@@ -224,6 +226,15 @@ export default function BoardsView({ onOpenBoard, onManageFolder }) {
                   </span>
                 </button>
 
+                <button
+                  onClick={() => setNotepadFolderId(folder.id)}
+                  className="inline-flex items-center gap-2 rounded-lg border border-line-strong bg-surface px-2 py-1 text-xs font-medium text-ink-2 hover:bg-muted hover:text-ink transition"
+                  title={`Notepad for ${folder.name}`}
+                >
+                  <Icon name="note" className="w-4 h-4" />
+                  <span className="hidden xs:inline">Notepad</span>
+                </button>
+
                 <div className="flex items-center gap-1">
                   {canManageFolder(folder, state.user) && (
                   <button
@@ -274,6 +285,13 @@ export default function BoardsView({ onOpenBoard, onManageFolder }) {
 
       {newBoardFolder && <NewBoardModal folderId={newBoardFolder} onClose={closeBoardModal} />}
       {newFolder && <NewFolderModal onClose={() => setNewFolder(false)} />}
+      {notepadFolderId &&
+        (() => {
+          const folder = state.folders.find((f) => f.id === notepadFolderId)
+          return folder ? (
+            <FolderNotepadModal folder={folder} onClose={() => setNotepadFolderId(null)} />
+          ) : null
+        })()}
     </div>
   )
 }

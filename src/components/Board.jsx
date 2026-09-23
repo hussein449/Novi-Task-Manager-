@@ -17,6 +17,7 @@ import { RowFace } from './TaskRow'
 import { Icon, EmptyState, Button } from './ui'
 import Calendar from './Calendar'
 import { useStore, cardsOfBoard, canEdit, memberFor } from '../store'
+import { dateKeyOffset, formatDayKey } from '../lib/utils'
 
 const DOTS = ['bg-slate-500', 'bg-blue-600', 'bg-amber-600', 'bg-violet-600']
 const DONE_DOT = 'bg-emerald-600'
@@ -33,6 +34,11 @@ export default function Board({ board, onOpenCard, query, calendarOpen, onCloseC
   const [overListId, setOverListId] = useState(null)
   const [addingList, setAddingList] = useState(false)
   const [listTitle, setListTitle] = useState('')
+  const [dayOffset, setDayOffset] = useState(0)
+
+  const searching = Boolean(query.trim())
+  const isToday = dayOffset === 0
+  const viewedKey = dateKeyOffset(dayOffset)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -144,6 +150,37 @@ export default function Board({ board, onOpenCard, query, calendarOpen, onCloseC
         }`}
       >
         <div className="space-y-3 min-w-0">
+        {!searching && (
+          <div className="flex items-center justify-center gap-5 rounded-xl border border-line bg-surface px-4 py-3.5 shadow-xs">
+            <button
+              onClick={() => setDayOffset((o) => o - 1)}
+              className="p-2.5 rounded-lg text-ink-2 hover:text-ink hover:bg-muted transition"
+              aria-label="Previous day"
+            >
+              <Icon name="chevron" className="w-5 h-5 rotate-180" />
+            </button>
+            <div className="text-center min-w-[10rem]">
+              <p className="text-lg font-semibold text-ink tracking-tight">{formatDayKey(viewedKey)}</p>
+              {!isToday && (
+                <button
+                  onClick={() => setDayOffset(0)}
+                  className="text-xs font-medium text-primary hover:underline"
+                >
+                  Jump to Today
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => setDayOffset((o) => Math.min(0, o + 1))}
+              disabled={isToday}
+              className="p-2.5 rounded-lg text-ink-2 hover:text-ink hover:bg-muted transition disabled:opacity-30 disabled:pointer-events-none"
+              aria-label="Next day"
+            >
+              <Icon name="chevron" className="w-5 h-5" />
+            </button>
+          </div>
+        )}
+
         {board.lists.map((list, index) => (
           <StatusGroup
             key={list.id}
@@ -154,8 +191,8 @@ export default function Board({ board, onOpenCard, query, calendarOpen, onCloseC
             onOpenCard={onOpenCard}
             isDragTarget={activeId !== null && overListId === list.id}
             readOnly={!mayEdit}
-            daily={index === 0}
-            searching={Boolean(query.trim())}
+            dayOffset={dayOffset}
+            searching={searching}
           />
         ))}
 

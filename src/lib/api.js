@@ -86,6 +86,7 @@ export async function loadWorkspace() {
     id: row.id,
     name: row.name,
     emoji: row.emoji,
+    notes: row.notes ?? '',
     ownerEmail: clean(row.owner_email),
     ownerId: clean(row.owner_email),
     members: membersByFolder.get(row.id) ?? [],
@@ -144,6 +145,11 @@ export const createFolder = async ({ id, name, emoji, ownerEmail, ownerName }) =
 
 export const renameFolder = async (id, name) => {
   const { error } = await supabase.from('folders').update({ name }).eq('id', id)
+  if (error) throw error
+}
+
+export const updateFolderNotes = async (id, notes) => {
+  const { error } = await supabase.rpc('update_folder_notes', { p_folder: id, p_notes: notes })
   if (error) throw error
 }
 

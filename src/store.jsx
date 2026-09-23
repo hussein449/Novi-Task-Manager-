@@ -58,6 +58,9 @@ export const folderRoleOf = (folder, userId) => {
 export const canManageFolder = (folder, user) =>
   isAdmin(user) || folderRoleOf(folder, user?.id) === 'owner'
 
+export const canEditFolder = (folder, user) =>
+  isAdmin(user) || ['owner', 'editor'].includes(folderRoleOf(folder, user?.id))
+
 export const cardsOfBoard = (state, boardId) => state.cards.filter((c) => c.boardId === boardId)
 export const cardsOfList = (state, listId) => state.cards.filter((c) => c.listId === listId)
 
@@ -199,6 +202,7 @@ function reducer(state, action) {
             id: action.id,
             name: action.name,
             emoji: action.emoji ?? '📁',
+            notes: '',
             ownerId: state.user.id,
             ownerEmail: state.user.email,
             members: [{ ...state.user, role: 'owner' }],
@@ -210,6 +214,12 @@ function reducer(state, action) {
       return {
         ...state,
         folders: state.folders.map((f) => (f.id === action.id ? { ...f, name: action.name } : f)),
+      }
+
+    case 'updateFolderNotes':
+      return {
+        ...state,
+        folders: state.folders.map((f) => (f.id === action.id ? { ...f, notes: action.notes } : f)),
       }
 
     case 'deleteFolder': {
@@ -577,6 +587,9 @@ async function persist(action, before, after) {
 
     case 'renameFolder':
       return api.renameFolder(action.id, action.name)
+
+    case 'updateFolderNotes':
+      return api.updateFolderNotes(action.id, action.notes)
 
     case 'deleteFolder':
       return api.deleteFolder(action.id)

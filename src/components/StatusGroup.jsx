@@ -11,11 +11,11 @@ import { dateKey, dateKeyOffset, formatDayKey } from '../lib/utils'
  * section — header included — so a card dropped anywhere over the group lands
  * in it, rather than only over the rows themselves.
  *
- * The first status on a board (`daily`) doubles as a day-by-day To Do list: a
- * card's `day` — separate from any deadline — says which day's list it is on.
- * Each new day starts empty, arrows page back through earlier days, and
- * anything left open from before shows in a pinned Overdue section until it
- * is checked off.
+ * Every status doubles as a day-by-day list: a card's `day` — separate from
+ * any deadline — says which day's list it is on. The board's shared day
+ * switcher (above all the statuses) pages every one of them at once, each new
+ * day starts empty, and anything left open from before shows in a pinned
+ * Overdue section until it is checked off.
  */
 export default function StatusGroup({
   board,
@@ -25,7 +25,7 @@ export default function StatusGroup({
   onOpenCard,
   isDragTarget,
   readOnly = false,
-  daily = false,
+  dayOffset = 0,
   searching = false,
 }) {
   const { state, dispatch } = useStore()
@@ -35,7 +35,6 @@ export default function StatusGroup({
   const [renaming, setRenaming] = useState(false)
   const [listTitle, setListTitle] = useState(list.title)
   const [collapsed, setCollapsed] = useState(false)
-  const [dayOffset, setDayOffset] = useState(0)
   const inputRef = useRef(null)
   const menuRef = useRef(null)
 
@@ -56,7 +55,7 @@ export default function StatusGroup({
     return () => document.removeEventListener('mousedown', onClick)
   }, [menuOpen])
 
-  const showDaily = daily && !searching
+  const showDaily = !searching
   const isToday = dayOffset === 0
   const todayKey = dateKey()
   const viewedKey = showDaily ? dateKeyOffset(dayOffset) : null
@@ -72,7 +71,7 @@ export default function StatusGroup({
   }, [showDaily, isToday, cards, todayKey])
 
   const visibleCards = showDaily ? dayCards : cards
-  const canAddHere = !readOnly && (!daily || isToday || searching)
+  const canAddHere = !readOnly && (isToday || searching)
 
   const toggleDaily = (id) => {
     const card = cards.find((c) => c.id === id)
@@ -104,7 +103,7 @@ export default function StatusGroup({
       listId: list.id,
       title: value,
       assigneeId: state.user?.id ?? null,
-      day: daily ? todayKey : undefined,
+      day: todayKey,
     })
     setTitle('')
   }
@@ -242,37 +241,6 @@ export default function StatusGroup({
 
       {!collapsed && (
         <div>
-          {showDaily && (
-            <div className="flex items-center gap-1 px-2 sm:px-3 py-1.5 bg-surface border-b border-line">
-              <button
-                onClick={() => setDayOffset((o) => o - 1)}
-                className="p-1 rounded-md text-ink-3 hover:text-ink hover:bg-muted transition"
-                aria-label="Previous day"
-              >
-                <Icon name="chevron" className="w-3.5 h-3.5 rotate-180" />
-              </button>
-              <span className="flex-1 text-center text-xs font-medium text-ink-2">
-                {formatDayKey(viewedKey)}
-              </span>
-              <button
-                onClick={() => setDayOffset((o) => Math.min(0, o + 1))}
-                disabled={isToday}
-                className="p-1 rounded-md text-ink-3 hover:text-ink hover:bg-muted transition disabled:opacity-30 disabled:pointer-events-none"
-                aria-label="Next day"
-              >
-                <Icon name="chevron" className="w-3.5 h-3.5" />
-              </button>
-              {!isToday && (
-                <button
-                  onClick={() => setDayOffset(0)}
-                  className="ml-1 shrink-0 text-xs font-medium text-primary hover:underline"
-                >
-                  Today
-                </button>
-              )}
-            </div>
-          )}
-
           {showDaily && isToday && overdueCards.length > 0 && (
             <div className="border-b border-line bg-danger-soft/40">
               <p className="px-3 pt-2 pb-1 text-xs font-semibold text-danger">
