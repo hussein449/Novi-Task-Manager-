@@ -442,6 +442,16 @@ function SidebarContent({ activeBoardId, onOpenBoard, view, onChangeView, onClos
               )}
 
               <div className="space-y-0.5">
+                <button
+                  onClick={() => {
+                    setNotepadFolderId(folder.id)
+                    onClose?.()
+                  }}
+                  className="w-full flex items-center gap-2.5 rounded-lg pl-6 pr-3 py-2 text-sm text-ink-2 hover:bg-muted hover:text-ink transition"
+                >
+                  <Icon name="note" className="w-3.5 h-3.5 shrink-0 text-warning" />
+                  <span className="truncate">Notepad</span>
+                </button>
                 {boards.map((b) => (
                   <button
                     key={b.id}
