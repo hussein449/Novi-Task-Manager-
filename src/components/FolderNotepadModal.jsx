@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Modal, Button } from './ui'
+import { Modal, Button, Icon } from './ui'
 import { useStore, canEditFolder } from '../store'
 
 /**
@@ -23,6 +23,12 @@ export default function FolderNotepadModal({ folder, onClose }) {
   const close = () => {
     save()
     onClose()
+  }
+
+  const clear = () => {
+    if (!window.confirm('Clear this notepad? This cannot be undone.')) return
+    setNotes('')
+    dispatch({ type: 'updateFolderNotes', id: folder.id, notes: '' })
   }
 
   return (
@@ -54,7 +60,15 @@ export default function FolderNotepadModal({ folder, onClose }) {
         </p>
       )}
 
-      <div className="mt-5 flex justify-end">
+      <div className="mt-5 flex items-center justify-between">
+        {mayEdit ? (
+          <Button variant="danger" size="sm" onClick={clear} disabled={!notes.trim()}>
+            <Icon name="trash" className="w-4 h-4" />
+            Clear notepad
+          </Button>
+        ) : (
+          <span />
+        )}
         <Button variant="ghost" onClick={close}>
           Done
         </Button>

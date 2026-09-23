@@ -164,16 +164,14 @@ function BoardCard({ board, onOpen }) {
 }
 
 function NotepadCard({ folder, onOpen }) {
+  const { dispatch } = useStore()
   const preview = (folder.notes ?? '').trim()
 
   return (
-    <button
-      onClick={() => onOpen(folder.id)}
-      className="group relative rounded-xl border border-line bg-surface shadow-xs hover:shadow-md hover:border-line-strong transition overflow-hidden text-left"
-    >
+    <div className="group relative rounded-xl border border-line bg-surface shadow-xs hover:shadow-md hover:border-line-strong transition overflow-hidden">
       <span className="block h-1 bg-warning" />
-      <div className="p-4">
-        <div className="flex items-center gap-2">
+      <button onClick={() => onOpen(folder.id)} className="block w-full text-left p-4">
+        <div className="flex items-center gap-2 pr-7">
           <span className="grid place-items-center w-7 h-7 rounded-lg bg-warning-soft text-warning shrink-0">
             <Icon name="note" className="w-4 h-4" />
           </span>
@@ -182,8 +180,20 @@ function NotepadCard({ folder, onOpen }) {
         <p className="mt-2.5 text-xs text-ink-3 line-clamp-3 min-h-[2.5rem]">
           {preview || 'General points and notes — jot something down before it becomes a task.'}
         </p>
-      </div>
-    </button>
+      </button>
+      <button
+        onClick={() => {
+          if (window.confirm(`Clear the notepad for "${folder.name}"? This cannot be undone.`)) {
+            dispatch({ type: 'updateFolderNotes', id: folder.id, notes: '' })
+          }
+        }}
+        className="absolute top-3 right-2 p-1.5 rounded-md text-ink-3 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-danger hover:bg-danger-soft transition"
+        aria-label={`Clear the notepad for ${folder.name}`}
+        title="Clear notepad"
+      >
+        <Icon name="trash" className="w-4 h-4" />
+      </button>
+    </div>
   )
 }
 
