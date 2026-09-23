@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Icon, Avatar, Button, Modal, Field, inputClass, EmptyState } from './ui'
 import { useStore, canEdit, deliverablesOfBoard, cardsOfBoard, memberFor, isAssignedTo } from '../store'
+import { formatDue } from '../lib/utils'
 
 const STATUS = {
   planned: { label: 'Planned', chip: 'bg-slate-50 text-slate-600 border-slate-200' },
@@ -110,8 +111,15 @@ function DeliverableRow({ deliverable, mayEdit, onDelete }) {
     setEditing(false)
   }
 
-  const toggleApprove = () =>
-    dispatch({ type: 'approveDeliverable', id: deliverable.id, approved: !deliverable.approved })
+  const markPaid = () =>
+    dispatch({
+      type: 'updateDeliverable',
+      id: deliverable.id,
+      patch: { approved: true, paid: true, paidAt: new Date().toISOString() },
+    })
+
+  const undoPaid = () =>
+    dispatch({ type: 'updateDeliverable', id: deliverable.id, patch: { paid: false, paidAt: null } })
 
   if (editing) {
     return (
@@ -208,22 +216,21 @@ function DeliverableRow({ deliverable, mayEdit, onDelete }) {
 
         {deliverable.status === 'completed' &&
           (deliverable.paid ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-success-soft text-success px-2.5 py-1 text-xs font-medium">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-success-soft text-success px-2.5 py-1 text-xs font-medium">
               <Icon name="check" className="w-3 h-3" />
-              Paid
-            </span>
-          ) : deliverable.approved ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-soft text-primary px-2.5 py-1 text-xs font-medium">
-              <Icon name="check" className="w-3 h-3" />
-              Approved
-              <button onClick={toggleApprove} className="text-primary/70 hover:text-primary underline">
-                undo
-              </button>
+              Paid {formatDue(deliverable.paidAt)}
+              {mayEdit && (
+                <button onClick={undoPaid} className="text-success/70 hover:text-success underline">
+                  undo
+                </button>
+              )}
             </span>
           ) : (
-            <Button size="sm" variant="success" onClick={toggleApprove}>
-              Approve &amp; Pay
-            </Button>
+            mayEdit && (
+              <Button size="sm" variant="success" onClick={markPaid}>
+                Mark as paid
+              </Button>
+            )
           ))}
 
         {mayEdit && (
@@ -337,44 +344,32 @@ export default function DeliverablesView({ board: initialBoard }) {
     [state, board.id],
   )
 
-  const totals = useMemo(() => {
-    const deliverableTotal = items.reduce((sum, d) => sum + (d.price || 0), 0)
-    const deliverableReady = items
-      .filter((d) => d.status === 'completed' && d.approved && !d.paid)
-      .reduce((sum, d) => sum + (d.price || 0), 0)
-
-    const taskTotal = tasks.reduce((sum, c) => sum + (c.price || 0), 0)
-    const taskReady = tasks
-      .filter((c) => c.done && !c.paid)
-      .reduce((sum, c) => sum + (c.price || 0), 0)
-
-    return {
-      total: deliverableTotal + taskTotal,
-      readyToPay: deliverableReady + taskReady,
-      currency: items[0]?.currency || 'USD',
-    }
-  }, [items, tasks])
-
   // Only tasks carry an assignee — manual deliverables aren't tied to anyone
-  // in particular, so they don't factor into this breakdown.
+  // in particular, so they don't factor into this breakdown. "Owed" only
+  // counts done, unpaid work — no paying out for something still in progress.
   const perPerson = useMemo(() => {
-    const rows = board.members.map((m) => ({
-      member: m,
-      total: tasks.filter((c) => isAssignedTo(c, m.id)).reduce((sum, c) => sum + (c.price || 0), 0),
-    }))
+    const rows = board.members.map((m) => {
+      const mine = tasks.filter((c) => isAssignedTo(c, m.id))
+      const owed = mine.filter((c) => c.done && !c.paid)
+      const paidAts = mine.filter((c) => c.paid && c.paidAt).map((c) => c.paidAt)
+      return {
+        member: m,
+        total: mine.reduce((sum, c) => sum + (c.price || 0), 0),
+        owedTotal: owed.reduce((sum, c) => sum + (c.price || 0), 0),
+        lastPaidAt: paidAts.length ? paidAts.sort().at(-1) : null,
+      }
+    })
     const unassigned = tasks.filter((c) => !c.assigneeId).reduce((sum, c) => sum + (c.price || 0), 0)
     return { rows, unassigned }
   }, [board.members, tasks])
 
-  const releasePayment = () => {
-    if (totals.readyToPay <= 0) return
+  const markPersonPaid = (row) => {
+    if (row.owedTotal <= 0) return
     const ok = window.confirm(
-      `Mark ${money(totals.readyToPay, totals.currency)} as paid? This only updates the record here — no real payment is sent.`,
+      `Mark ${money(row.owedTotal, 'USD')} as paid to ${row.member.name}? This only updates the record here — no real payment is sent.`,
     )
-    if (ok) dispatch({ type: 'releasePayment', boardId: board.id })
+    if (ok) dispatch({ type: 'payPerson', boardId: board.id, memberId: row.member.id })
   }
-
-  const showFooter = tasks.length > 0 || items.length > 0
 
   return (
     <div className="px-4 sm:px-6 max-w-3xl mx-auto w-full">
@@ -465,55 +460,41 @@ export default function DeliverablesView({ board: initialBoard }) {
         <section className="mb-8">
           <h2 className="text-sm font-semibold text-ink mb-3">Totals by person</h2>
           <div className="rounded-xl border border-line bg-surface divide-y divide-line overflow-hidden">
-            {perPerson.rows.map(({ member, total }) => (
-              <div key={member.id} className="flex items-center gap-3 px-4 py-2.5">
-                <Avatar user={member} size={24} />
-                <span className="text-sm text-ink truncate flex-1">{member.name}</span>
-                <span className="text-sm font-semibold text-ink tabular-nums">
-                  {money(total, totals.currency)}
+            {perPerson.rows.map((row) => (
+              <div key={row.member.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                <Avatar user={row.member} size={26} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-ink truncate">{row.member.name}</p>
+                  {row.lastPaidAt && (
+                    <p className="text-xs text-ink-3 mt-0.5">Last paid {formatDue(row.lastPaidAt)}</p>
+                  )}
+                </div>
+                <span className="text-sm font-semibold text-ink tabular-nums shrink-0">
+                  {money(row.total, 'USD')}
                 </span>
+                {mayEdit &&
+                  (row.owedTotal > 0 ? (
+                    <Button size="sm" variant="success" onClick={() => markPersonPaid(row)}>
+                      Mark as paid
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="secondary" disabled>
+                      {row.lastPaidAt ? 'Paid' : 'Nothing owed'}
+                    </Button>
+                  ))}
               </div>
             ))}
             {perPerson.unassigned > 0 && (
-              <div className="flex items-center gap-3 px-4 py-2.5">
-                <Avatar user={null} size={24} />
+              <div className="flex items-center gap-3 px-4 py-3">
+                <Avatar user={null} size={26} />
                 <span className="text-sm text-ink-3 flex-1">Unassigned</span>
                 <span className="text-sm font-semibold text-ink tabular-nums">
-                  {money(perPerson.unassigned, totals.currency)}
+                  {money(perPerson.unassigned, 'USD')}
                 </span>
               </div>
             )}
           </div>
         </section>
-      )}
-
-      {showFooter && <div className="pb-16" />}
-
-      {showFooter && (
-        <div className="sticky bottom-16 lg:bottom-0 z-10 -mx-4 sm:-mx-6 border-t border-line bg-surface/95 backdrop-blur px-4 sm:px-6 py-3.5 shadow-[0_-4px_12px_rgba(0,0,0,0.04)]">
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-            <div>
-              <p className="text-xs text-ink-3">Total project value</p>
-              <p className="text-base font-semibold text-ink tabular-nums">
-                {money(totals.total, totals.currency)}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-ink-3">Ready to pay</p>
-              <p className="text-base font-semibold text-success tabular-nums">
-                {money(totals.readyToPay, totals.currency)}
-              </p>
-            </div>
-            <Button
-              variant="success"
-              className="ml-auto"
-              onClick={releasePayment}
-              disabled={totals.readyToPay <= 0}
-            >
-              Release Payment
-            </Button>
-          </div>
-        </div>
       )}
 
       {adding && <AddDeliverableModal boardId={board.id} onClose={() => setAdding(false)} />}

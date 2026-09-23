@@ -395,18 +395,22 @@ export const updateDeliverable = async (id, patch) => {
   if ('price' in patch) row.price = patch.price
   if ('currency' in patch) row.currency = patch.currency
   if ('status' in patch) row.status = patch.status
+  if ('approved' in patch) row.approved = patch.approved
+  if ('paid' in patch) row.paid = patch.paid
+  if ('paidAt' in patch) row.paid_at = patch.paidAt ? new Date(patch.paidAt).toISOString() : null
   if (Object.keys(row).length === 0) return
   const { error } = await supabase.from('deliverables').update(row).eq('id', id)
   if (error) throw error
 }
 
-export const approveDeliverable = async (id, approved) => {
-  const { error } = await supabase.rpc('approve_deliverable', { p_id: id, p_approved: approved })
-  if (error) throw error
-}
-
-export const releasePayment = async (boardId) => {
-  const { error } = await supabase.rpc('release_payment', { p_board: boardId })
+/** Marks every done, priced, unpaid task in `ids` as paid — a freelancer
+ * recording that a person has been paid, not a client-facing action. */
+export const payPerson = async (ids) => {
+  if (ids.length === 0) return
+  const { error } = await supabase
+    .from('cards')
+    .update({ paid: true, paid_at: new Date().toISOString() })
+    .in('id', ids)
   if (error) throw error
 }
 

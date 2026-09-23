@@ -554,31 +554,18 @@ function reducer(state, action) {
         ),
       }
 
-    case 'approveDeliverable':
-      return {
-        ...state,
-        deliverables: state.deliverables.map((d) =>
-          d.id === action.id
-            ? {
-                ...d,
-                approved: action.approved,
-                approvedAt: action.approved ? new Date().toISOString() : null,
-              }
-            : d,
-        ),
-      }
-
-    case 'releasePayment': {
+    // Pays out every done, priced, unpaid task assigned to one person on one
+    // board — the freelancer recording "I paid them", not a client action.
+    case 'payPerson': {
       const paidAt = new Date().toISOString()
       return {
         ...state,
-        deliverables: state.deliverables.map((d) =>
-          d.boardId === action.boardId && d.status === 'completed' && d.approved && !d.paid
-            ? { ...d, paid: true, paidAt }
-            : d,
-        ),
         cards: state.cards.map((c) =>
-          c.boardId === action.boardId && c.done && (c.price || 0) > 0 && !c.paid
+          c.boardId === action.boardId &&
+          isAssignedTo(c, action.memberId) &&
+          c.done &&
+          (c.price || 0) > 0 &&
+          !c.paid
             ? { ...c, paid: true, paidAt }
             : c,
         ),
@@ -801,11 +788,19 @@ async function persist(action, before, after) {
     case 'updateDeliverable':
       return api.updateDeliverable(action.id, action.patch)
 
-    case 'approveDeliverable':
-      return api.approveDeliverable(action.id, action.approved)
-
-    case 'releasePayment':
-      return api.releasePayment(action.boardId)
+    case 'payPerson': {
+      const ids = before.cards
+        .filter(
+          (c) =>
+            c.boardId === action.boardId &&
+            isAssignedTo(c, action.memberId) &&
+            c.done &&
+            (c.price || 0) > 0 &&
+            !c.paid,
+        )
+        .map((c) => c.id)
+      return api.payPerson(ids)
+    }
 
     case 'deleteDeliverable':
       return api.deleteDeliverable(action.id)
