@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { RowFace } from './TaskRow'
 import { Icon, EmptyState, inputClass } from './ui'
-import { useStore } from '../store'
+import { useStore, memberFor, isAssignedTo } from '../store'
 import { BUCKETS, bucketFor } from '../lib/utils'
 
 const SCOPES = [
@@ -19,7 +19,7 @@ export default function Planner({ onOpenCard, query }) {
     const q = query.trim().toLowerCase()
     return state.cards
       .filter((c) => (boardFilter === 'all' ? true : c.boardId === boardFilter))
-      .filter((c) => (scope === 'mine' ? c.assigneeId === state.user?.id : true))
+      .filter((c) => (scope === 'mine' ? isAssignedTo(c, state.user?.id) : true))
       .filter((c) => (scope === 'open' ? !c.done : true))
       .filter((c) => (q ? c.title.toLowerCase().includes(q) : true))
       .sort((a, b) => {
@@ -97,7 +97,7 @@ export default function Planner({ onOpenCard, query }) {
                       <div key={card.id} className="rounded-lg border border-line bg-surface shadow-xs">
                         <RowFace
                           card={card}
-                          member={board?.members.find((m) => m.id === card.assigneeId) ?? null}
+                          member={memberFor(board, card.assigneeId)}
                           onToggleDone={(id) => dispatch({ type: 'toggleDone', id })}
                           onOpen={onOpenCard}
                           meta={board?.name}

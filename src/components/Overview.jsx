@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Icon, Avatar, EmptyState } from './ui'
-import { useStore, accentOf, ROLES, roleOf, folderMembers, folderRoleOf } from '../store'
+import { useStore, accentOf, ROLES, roleOf, folderMembers, folderRoleOf, memberFor, EVERYONE } from '../store'
 import { formatDue, dueState } from '../lib/utils'
 
 const Stat = ({ label, value, tone = 'text-ink', icon }) => (
@@ -55,13 +55,14 @@ const peopleIn = (folder, boards, cards) => {
     }),
   )
   cards.forEach((c) => {
-    const row = map.get(c.assigneeId)
-    if (!row) return
-    if (c.done) row.done += 1
-    else {
-      row.open += 1
-      if (c.dueDate && new Date(c.dueDate).getTime() < Date.now()) row.overdue += 1
-    }
+    const rows = c.assigneeId === EVERYONE ? [...map.values()] : [map.get(c.assigneeId)].filter(Boolean)
+    rows.forEach((row) => {
+      if (c.done) row.done += 1
+      else {
+        row.open += 1
+        if (c.dueDate && new Date(c.dueDate).getTime() < Date.now()) row.overdue += 1
+      }
+    })
   })
   return [...map.values()].sort((a, b) => b.open - a.open || b.done - a.done)
 }
@@ -243,7 +244,7 @@ export default function Overview({ onOpenBoard, onOpenCard, onManageFolder }) {
                   onClick={() => onOpenCard(c.id)}
                   className="w-full flex items-center gap-3 rounded-lg px-2.5 py-2 hover:bg-muted transition text-left"
                 >
-                  <Avatar user={board?.members.find((m) => m.id === c.assigneeId) ?? null} size={26} />
+                  <Avatar user={memberFor(board, c.assigneeId)} size={26} />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-ink truncate">{c.title}</p>
                     <p className="text-xs text-ink-3 truncate">

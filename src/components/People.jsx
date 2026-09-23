@@ -11,6 +11,7 @@ import {
   canManage,
   roleOf,
   isAdmin,
+  isAssignedTo,
 } from '../store'
 
 /* ---------------- one person's row ---------------- */
@@ -88,8 +89,8 @@ function BoardPeople({ board, mayManage }) {
   const cards = state.cards.filter((c) => c.boardId === board.id)
 
   const counts = (memberId) => ({
-    open: cards.filter((c) => c.assigneeId === memberId && !c.done).length,
-    done: cards.filter((c) => c.assigneeId === memberId && c.done).length,
+    open: cards.filter((c) => isAssignedTo(c, memberId) && !c.done).length,
+    done: cards.filter((c) => isAssignedTo(c, memberId) && c.done).length,
   })
 
   return (
@@ -230,8 +231,8 @@ export default function People({ onManageFolder }) {
           const mayManage = canManageFolder(folder, state.user)
 
           const counts = (memberId) => ({
-            open: cards.filter((c) => c.assigneeId === memberId && !c.done).length,
-            done: cards.filter((c) => c.assigneeId === memberId && c.done).length,
+            open: cards.filter((c) => isAssignedTo(c, memberId) && !c.done).length,
+            done: cards.filter((c) => isAssignedTo(c, memberId) && c.done).length,
           })
 
           return (

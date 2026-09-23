@@ -60,6 +60,17 @@ export const Avatar = ({ user, size = 32, title }) => {
       </span>
     )
   }
+  if (user.all) {
+    return (
+      <span
+        className="inline-flex items-center justify-center rounded-full text-white ring-2 ring-white bg-ink-2"
+        style={{ width: size, height: size }}
+        title={title ?? 'Everyone'}
+      >
+        <Icon name="users" className="w-1/2 h-1/2" />
+      </span>
+    )
+  }
   return (
     <span
       className="inline-flex items-center justify-center rounded-full font-semibold text-white ring-2 ring-white"

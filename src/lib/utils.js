@@ -97,6 +97,36 @@ export const BUCKETS = [
   { key: 'nodate', label: 'No deadline', tone: 'text-ink-3' },
 ]
 
+/* ---------- daily To Do list ----------
+ * A card's `day` is which day's To Do list it belongs to — separate from its
+ * `dueDate`, which is an optional deadline with its own reminder. Keeping them
+ * apart means adding a task to today's list never triggers a reminder.
+ */
+
+const pad = (n) => String(n).padStart(2, '0')
+
+export const dateKey = (d = new Date()) => {
+  const x = startOfDay(d)
+  return `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}`
+}
+
+export const dateKeyOffset = (offset) => {
+  const d = startOfDay(new Date())
+  d.setDate(d.getDate() + offset)
+  return dateKey(d)
+}
+
+export const formatDayKey = (key) => {
+  if (!key) return ''
+  const [y, m, d] = key.split('-').map(Number)
+  const date = new Date(y, m - 1, d)
+  const diff = daysBetween(new Date(), date)
+  if (diff === 0) return 'Today'
+  if (diff === -1) return 'Yesterday'
+  if (diff === 1) return 'Tomorrow'
+  return date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
 /* ---------- invite links (UTF-8 safe base64) ---------- */
 
 export const encodePayload = (obj) => {

@@ -29,6 +29,7 @@ const cardFrom = (row) => ({
   assigneeId: clean(row.assignee_email) || null,
   priority: row.priority ?? 'medium',
   done: Boolean(row.done),
+  day: row.day ?? null,
   notifiedAt: row.notified_at ? new Date(row.notified_at).getTime() : null,
   sortOrder: row.sort_order ?? 0,
   createdAt: row.created_at,
@@ -224,6 +225,7 @@ export const createCard = async (card) => {
     assignee_email: card.assigneeId,
     priority: card.priority ?? 'medium',
     done: Boolean(card.done),
+    day: card.day ?? null,
     sort_order: card.sortOrder ?? 0,
     created_by: card.createdBy,
   })
@@ -239,6 +241,7 @@ export const updateCard = async (id, patch) => {
   if ('assigneeId' in patch) row.assignee_email = patch.assigneeId
   if ('priority' in patch) row.priority = patch.priority
   if ('done' in patch) row.done = patch.done
+  if ('day' in patch) row.day = patch.day
   if ('listId' in patch) row.list_id = patch.listId
   if ('notifiedAt' in patch) {
     row.notified_at = patch.notifiedAt ? new Date(patch.notifiedAt).toISOString() : null

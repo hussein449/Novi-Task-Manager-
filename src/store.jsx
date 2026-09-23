@@ -61,6 +61,19 @@ export const canManageFolder = (folder, user) =>
 export const cardsOfBoard = (state, boardId) => state.cards.filter((c) => c.boardId === boardId)
 export const cardsOfList = (state, listId) => state.cards.filter((c) => c.listId === listId)
 
+/* ---------------- assigning to everyone ---------------- */
+
+// A sentinel assigneeId, not a real member: every board member owns the card.
+export const EVERYONE = 'everyone'
+
+export const memberFor = (board, assigneeId) => {
+  if (assigneeId === EVERYONE) return { id: EVERYONE, name: 'Everyone', all: true }
+  return board?.members.find((m) => m.id === assigneeId) ?? null
+}
+
+export const isAssignedTo = (card, memberId) =>
+  Boolean(memberId) && (card.assigneeId === memberId || card.assigneeId === EVERYONE)
+
 /* ---------------- reminders are per device ---------------- */
 
 const NOTES_KEY = 'novi.reminders'
@@ -418,6 +431,7 @@ function reducer(state, action) {
             assigneeId: action.assigneeId ?? null,
             priority: 'medium',
             done: false,
+            day: action.day ?? null,
             createdAt: new Date().toISOString(),
           },
         ],
@@ -638,6 +652,7 @@ async function persist(action, before, after) {
         listId: action.listId,
         title: action.title,
         assigneeId: action.assigneeId ?? null,
+        day: action.day ?? null,
         sortOrder: list.length - 1,
         createdBy: user.email,
       })

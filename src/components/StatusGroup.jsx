@@ -1,14 +1,21 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useDroppable } from '@dnd-kit/core'
-import TaskRow from './TaskRow'
+import TaskRow, { RowFace } from './TaskRow'
 import { Icon } from './ui'
-import { useStore } from '../store'
+import { useStore, memberFor } from '../store'
+import { dateKey, dateKeyOffset, formatDayKey } from '../lib/utils'
 
 /**
  * One status group in the task list. The droppable ref sits on the whole
  * section — header included — so a card dropped anywhere over the group lands
  * in it, rather than only over the rows themselves.
+ *
+ * The first status on a board (`daily`) doubles as a day-by-day To Do list: a
+ * card's `day` — separate from any deadline — says which day's list it is on.
+ * Each new day starts empty, arrows page back through earlier days, and
+ * anything left open from before shows in a pinned Overdue section until it
+ * is checked off.
  */
 export default function StatusGroup({
   board,
@@ -18,6 +25,8 @@ export default function StatusGroup({
   onOpenCard,
   isDragTarget,
   readOnly = false,
+  daily = false,
+  searching = false,
 }) {
   const { state, dispatch } = useStore()
   const [adding, setAdding] = useState(false)
@@ -26,6 +35,7 @@ export default function StatusGroup({
   const [renaming, setRenaming] = useState(false)
   const [listTitle, setListTitle] = useState(list.title)
   const [collapsed, setCollapsed] = useState(false)
+  const [dayOffset, setDayOffset] = useState(0)
   const inputRef = useRef(null)
   const menuRef = useRef(null)
 
@@ -46,6 +56,41 @@ export default function StatusGroup({
     return () => document.removeEventListener('mousedown', onClick)
   }, [menuOpen])
 
+  const showDaily = daily && !searching
+  const isToday = dayOffset === 0
+  const todayKey = dateKey()
+  const viewedKey = showDaily ? dateKeyOffset(dayOffset) : null
+
+  const dayCards = useMemo(() => {
+    if (!showDaily) return cards
+    return cards.filter((c) => (c.day ? c.day === viewedKey : isToday))
+  }, [showDaily, cards, viewedKey, isToday])
+
+  const overdueCards = useMemo(() => {
+    if (!showDaily || !isToday) return []
+    return cards.filter((c) => !c.done && c.day && c.day < todayKey)
+  }, [showDaily, isToday, cards, todayKey])
+
+  const visibleCards = showDaily ? dayCards : cards
+  const canAddHere = !readOnly && (!daily || isToday || searching)
+
+  const toggleDaily = (id) => {
+    const card = cards.find((c) => c.id === id)
+    if (!card) return
+    if (card.done) {
+      dispatch({ type: 'updateCard', id: card.id, patch: { done: false } })
+      return
+    }
+    const needsStamp = !card.day || card.day < todayKey
+    dispatch({
+      type: 'updateCard',
+      id: card.id,
+      patch: needsStamp ? { done: true, day: todayKey } : { done: true },
+    })
+  }
+
+  const handleToggle = showDaily ? toggleDaily : (id) => dispatch({ type: 'toggleDone', id })
+
   const submit = (e) => {
     e?.preventDefault()
     const value = title.trim()
@@ -59,6 +104,7 @@ export default function StatusGroup({
       listId: list.id,
       title: value,
       assigneeId: state.user?.id ?? null,
+      day: daily ? todayKey : undefined,
     })
     setTitle('')
   }
@@ -71,6 +117,7 @@ export default function StatusGroup({
   }
 
   const startAdding = () => {
+    if (!canAddHere) return
     setCollapsed(false)
     setAdding(true)
   }
@@ -122,11 +169,17 @@ export default function StatusGroup({
         )}
 
         <span className="text-xs font-medium text-ink-2 bg-surface border border-line rounded-full px-1.5 py-0.5 tabular-nums">
-          {cards.length}
+          {visibleCards.length}
         </span>
 
+        {showDaily && overdueCards.length > 0 && (
+          <span className="text-xs font-medium text-danger bg-danger-soft border border-red-200 rounded-full px-1.5 py-0.5 tabular-nums">
+            {overdueCards.length} overdue
+          </span>
+        )}
+
         <div className="ml-auto flex items-center gap-0.5">
-          {readOnly ? null : (
+          {!canAddHere ? null : (
           <button
             onClick={startAdding}
             className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-ink-2 hover:bg-surface hover:text-ink transition"
@@ -156,15 +209,17 @@ export default function StatusGroup({
                 >
                   Rename status
                 </button>
-                <button
-                  onClick={() => {
-                    setMenuOpen(false)
-                    startAdding()
-                  }}
-                  className="w-full text-left px-3 py-2 rounded-md text-sm text-ink hover:bg-muted"
-                >
-                  Add a task
-                </button>
+                {canAddHere && (
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false)
+                      startAdding()
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-md text-sm text-ink hover:bg-muted"
+                  >
+                    Add a task
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     setMenuOpen(false)
@@ -187,22 +242,76 @@ export default function StatusGroup({
 
       {!collapsed && (
         <div>
-          <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-            {cards.map((card) => (
+          {showDaily && (
+            <div className="flex items-center gap-1 px-2 sm:px-3 py-1.5 bg-surface border-b border-line">
+              <button
+                onClick={() => setDayOffset((o) => o - 1)}
+                className="p-1 rounded-md text-ink-3 hover:text-ink hover:bg-muted transition"
+                aria-label="Previous day"
+              >
+                <Icon name="chevron" className="w-3.5 h-3.5 rotate-180" />
+              </button>
+              <span className="flex-1 text-center text-xs font-medium text-ink-2">
+                {formatDayKey(viewedKey)}
+              </span>
+              <button
+                onClick={() => setDayOffset((o) => Math.min(0, o + 1))}
+                disabled={isToday}
+                className="p-1 rounded-md text-ink-3 hover:text-ink hover:bg-muted transition disabled:opacity-30 disabled:pointer-events-none"
+                aria-label="Next day"
+              >
+                <Icon name="chevron" className="w-3.5 h-3.5" />
+              </button>
+              {!isToday && (
+                <button
+                  onClick={() => setDayOffset(0)}
+                  className="ml-1 shrink-0 text-xs font-medium text-primary hover:underline"
+                >
+                  Today
+                </button>
+              )}
+            </div>
+          )}
+
+          {showDaily && isToday && overdueCards.length > 0 && (
+            <div className="border-b border-line bg-danger-soft/40">
+              <p className="px-3 pt-2 pb-1 text-xs font-semibold text-danger">
+                Overdue · {overdueCards.length}
+              </p>
+              {overdueCards.map((card) => (
+                <div key={card.id} className="border-t border-red-200/60 first:border-t-0">
+                  <RowFace
+                    card={card}
+                    member={memberFor(board, card.assigneeId)}
+                    onToggleDone={handleToggle}
+                    onOpen={onOpenCard}
+                    meta={`Was ${formatDayKey(card.day)}`}
+                    readOnly={readOnly}
+                    noDrag
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          <SortableContext items={visibleCards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+            {visibleCards.map((card) => (
               <TaskRow
                 key={card.id}
                 card={card}
-                member={board.members.find((m) => m.id === card.assigneeId) ?? null}
+                member={memberFor(board, card.assigneeId)}
                 onOpen={onOpenCard}
-                onToggleDone={(id) => dispatch({ type: 'toggleDone', id })}
+                onToggleDone={handleToggle}
                 readOnly={readOnly}
               />
             ))}
           </SortableContext>
 
-          {cards.length === 0 && !adding && (
+          {visibleCards.length === 0 && !adding && (
             readOnly ? (
               <p className="px-3 py-4 text-sm text-ink-3 text-center">Nothing in this status.</p>
+            ) : !canAddHere ? (
+              <p className="px-3 py-4 text-sm text-ink-3 text-center">Nothing was on the list this day.</p>
             ) : (
               <button
                 onClick={startAdding}

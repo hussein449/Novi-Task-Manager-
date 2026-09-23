@@ -1,6 +1,6 @@
 import { Modal, Button, Avatar, Icon } from './ui'
 import InvitePanel from './InvitePanel'
-import { useStore, ROLES, folderMembers, folderRoleOf, canManageFolder } from '../store'
+import { useStore, ROLES, folderMembers, folderRoleOf, canManageFolder, isAssignedTo } from '../store'
 
 export default function FolderMembersModal({ folder, onClose }) {
   const { state, dispatch } = useStore()
@@ -10,7 +10,7 @@ export default function FolderMembersModal({ folder, onClose }) {
 
   const workload = (email) => {
     const boardIds = boards.map((b) => b.id)
-    const mine = state.cards.filter((c) => boardIds.includes(c.boardId) && c.assigneeId === email)
+    const mine = state.cards.filter((c) => boardIds.includes(c.boardId) && isAssignedTo(c, email))
     return { open: mine.filter((c) => !c.done).length, done: mine.filter((c) => c.done).length }
   }
 

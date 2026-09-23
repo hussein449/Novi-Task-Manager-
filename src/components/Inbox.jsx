@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { RowFace } from './TaskRow'
 import { Icon, EmptyState, Button, SectionTitle } from './ui'
-import { useStore } from '../store'
+import { useStore, memberFor, isAssignedTo } from '../store'
 import { formatDue } from '../lib/utils'
 
 export default function Inbox({ onOpenCard, reminders }) {
@@ -11,7 +11,7 @@ export default function Inbox({ onOpenCard, reminders }) {
   const mine = useMemo(
     () =>
       state.cards
-        .filter((c) => c.assigneeId === state.user?.id && !c.done)
+        .filter((c) => isAssignedTo(c, state.user?.id) && !c.done)
         .sort((a, b) => {
           if (!a.dueDate) return 1
           if (!b.dueDate) return -1
@@ -105,7 +105,7 @@ export default function Inbox({ onOpenCard, reminders }) {
                 <div key={card.id} className="rounded-lg border border-line bg-surface shadow-xs">
                   <RowFace
                     card={card}
-                    member={board?.members.find((m) => m.id === card.assigneeId) ?? null}
+                    member={memberFor(board, card.assigneeId)}
                     onToggleDone={(id) => dispatch({ type: 'toggleDone', id })}
                     onOpen={onOpenCard}
                     meta={board?.name}

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Icon, Avatar } from './ui'
-import { useStore, cardsOfBoard } from '../store'
+import { useStore, cardsOfBoard, memberFor, isAssignedTo } from '../store'
 import { startOfDay, formatDue, dueState } from '../lib/utils'
 
 const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
@@ -30,7 +30,7 @@ export default function Calendar({ board, onOpenCard, onClose }) {
     () =>
       cardsOfBoard(state, board.id)
         .filter((c) => c.dueDate)
-        .filter((c) => (personId === 'all' ? true : c.assigneeId === personId)),
+        .filter((c) => (personId === 'all' ? true : isAssignedTo(c, personId))),
     [state, board.id, personId],
   )
 
@@ -48,7 +48,7 @@ export default function Calendar({ board, onOpenCard, onClose }) {
   const selectedCards = byDay.get(startOfDay(selected).getTime()) ?? []
   const today = new Date()
 
-  const memberOf = (card) => board.members.find((m) => m.id === card.assigneeId) ?? null
+  const memberOf = (card) => memberFor(board, card.assigneeId)
 
   const shiftMonth = (delta) =>
     setMonth(new Date(month.getFullYear(), month.getMonth() + delta, 1))
@@ -82,7 +82,7 @@ export default function Calendar({ board, onOpenCard, onClose }) {
         </button>
         {board.members.map((m) => {
           const count = cardsOfBoard(state, board.id).filter(
-            (c) => c.dueDate && !c.done && c.assigneeId === m.id,
+            (c) => c.dueDate && !c.done && isAssignedTo(c, m.id),
           ).length
           return (
             <button

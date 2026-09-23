@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Modal, Field, inputClass, Button, Avatar, Icon } from './ui'
-import { useStore, PRIORITIES, ROLES, canEdit, roleOf } from '../store'
+import { useStore, PRIORITIES, ROLES, canEdit, roleOf, EVERYONE } from '../store'
 import { toInputValue, formatDue, dueState } from '../lib/utils'
 
 const REMINDERS = [
@@ -129,6 +129,19 @@ export default function CardModal({ cardId, onClose }) {
               >
                 <Avatar user={null} size={26} />
                 <span className="text-ink-2">Unassigned</span>
+              </button>
+              <button
+                disabled={!mayEdit}
+                onClick={() => patch({ assigneeId: EVERYONE })}
+                className={`w-full flex items-center gap-2.5 rounded-lg border px-2.5 py-2 text-sm transition ${
+                  card.assigneeId === EVERYONE
+                    ? 'border-primary bg-primary-soft'
+                    : 'border-transparent hover:bg-muted'
+                }`}
+              >
+                <Avatar user={{ all: true }} size={26} />
+                <span className="text-ink">Everyone</span>
+                <span className="ml-auto shrink-0 text-xs text-ink-3">{board.members.length} people</span>
               </button>
               {board.members.map((m) => (
                 <button

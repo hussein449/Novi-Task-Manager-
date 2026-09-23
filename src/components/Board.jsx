@@ -16,7 +16,7 @@ import StatusGroup from './StatusGroup'
 import { RowFace } from './TaskRow'
 import { Icon, EmptyState, Button } from './ui'
 import Calendar from './Calendar'
-import { useStore, cardsOfBoard, canEdit } from '../store'
+import { useStore, cardsOfBoard, canEdit, memberFor } from '../store'
 
 const DOTS = ['bg-slate-500', 'bg-blue-600', 'bg-amber-600', 'bg-violet-600']
 const DONE_DOT = 'bg-emerald-600'
@@ -49,7 +49,7 @@ export default function Board({ board, onOpenCard, query, calendarOpen, onCloseC
       (c) =>
         c.title.toLowerCase().includes(q) ||
         (c.description ?? '').toLowerCase().includes(q) ||
-        (board.members.find((m) => m.id === c.assigneeId)?.name ?? '').toLowerCase().includes(q),
+        (memberFor(board, c.assigneeId)?.name ?? '').toLowerCase().includes(q),
     )
   }, [boardCards, query, board.members])
 
@@ -154,6 +154,8 @@ export default function Board({ board, onOpenCard, query, calendarOpen, onCloseC
             onOpenCard={onOpenCard}
             isDragTarget={activeId !== null && overListId === list.id}
             readOnly={!mayEdit}
+            daily={index === 0}
+            searching={Boolean(query.trim())}
           />
         ))}
 
@@ -205,7 +207,7 @@ export default function Board({ board, onOpenCard, query, calendarOpen, onCloseC
         {activeCard ? (
           <RowFace
             card={activeCard}
-            member={board.members.find((m) => m.id === activeCard.assigneeId) ?? null}
+            member={memberFor(board, activeCard.assigneeId)}
             dragging
           />
         ) : null}
