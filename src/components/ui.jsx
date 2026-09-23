@@ -38,6 +38,7 @@ export const Icon = ({ name, className = 'w-5 h-5' }) => {
     grip: <><circle cx="9" cy="6" r="1.3" fill="currentColor" stroke="none" /><circle cx="15" cy="6" r="1.3" fill="currentColor" stroke="none" /><circle cx="9" cy="12" r="1.3" fill="currentColor" stroke="none" /><circle cx="15" cy="12" r="1.3" fill="currentColor" stroke="none" /><circle cx="9" cy="18" r="1.3" fill="currentColor" stroke="none" /><circle cx="15" cy="18" r="1.3" fill="currentColor" stroke="none" /></>,
     note: <><path d="M5 4h14v10l-5 6H5z" /><path d="M14 20v-6h5" /></>,
     sparkle: <><path d="M12 4l1.6 4.4L18 10l-4.4 1.6L12 16l-1.6-4.4L6 10l4.4-1.6z" /></>,
+    cash: <><rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6 9v.01M18 9v.01M6 15v.01M18 15v.01" /></>,
   }
   return (
     <svg viewBox="0 0 24 24" className={className} {...base} aria-hidden="true">
@@ -162,6 +163,7 @@ export const Button = ({ variant = 'primary', size = 'md', className = '', ...pr
     primary: 'bg-primary hover:bg-primary-dark text-white shadow-xs',
     secondary: 'bg-surface hover:bg-muted text-ink border border-line-strong shadow-xs',
     danger: 'bg-surface hover:bg-danger-soft text-danger border border-danger/30',
+    success: 'bg-success hover:bg-emerald-700 text-white shadow-xs',
     ghost: 'text-ink-2 hover:text-ink hover:bg-muted',
   }
   const sizes = { sm: 'px-2.5 py-1.5 text-xs gap-1.5', md: 'px-3.5 py-2 text-sm gap-2' }

@@ -4,6 +4,7 @@ import { useReminders } from './lib/useReminders'
 import Login from './components/Login'
 import Board from './components/Board'
 import BoardsView from './components/BoardsView'
+import DeliverablesView from './components/DeliverablesView'
 import Planner from './components/Planner'
 import Inbox from './components/Inbox'
 import Overview from './components/Overview'
@@ -139,6 +140,23 @@ export default function App() {
                     ? 'Create a folder for your first client or project, then add a board to it.'
                     : 'Pick a project from your folders, or create a new one.'
                 }
+                action={
+                  <Button onClick={() => setView('boards')}>
+                    <Icon name="folder" className="w-4 h-4" />
+                    Go to projects
+                  </Button>
+                }
+              />
+            ))}
+
+          {view === 'deliverables' &&
+            (board ? (
+              <DeliverablesView board={board} />
+            ) : (
+              <EmptyState
+                icon="cash"
+                title="No project open"
+                hint="Pick a project from your folders to see its deliverables and pricing."
                 action={
                   <Button onClick={() => setView('boards')}>
                     <Icon name="folder" className="w-4 h-4" />

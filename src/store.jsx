@@ -63,6 +63,8 @@ export const canEditFolder = (folder, user) =>
 
 export const cardsOfBoard = (state, boardId) => state.cards.filter((c) => c.boardId === boardId)
 export const cardsOfList = (state, listId) => state.cards.filter((c) => c.listId === listId)
+export const deliverablesOfBoard = (state, boardId) =>
+  state.deliverables.filter((d) => d.boardId === boardId)
 
 /* ---------------- assigning to everyone ---------------- */
 
@@ -107,6 +109,7 @@ const initialState = {
   boards: [],
   cards: [],
   meetings: [],
+  deliverables: [],
   activeBoardId: null,
   notifications: [],
 }
@@ -138,15 +141,16 @@ function reducer(state, action) {
         boards: action.user ? state.boards : [],
         cards: action.user ? state.cards : [],
         meetings: action.user ? state.meetings : [],
+        deliverables: action.user ? state.deliverables : [],
       }
     }
 
     case 'hydrate': {
-      const { folders, boards, cards, meetings = [] } = action.data
+      const { folders, boards, cards, meetings = [], deliverables = [] } = action.data
       const activeBoardId = boards.some((b) => b.id === state.activeBoardId)
         ? state.activeBoardId
         : (boards[0]?.id ?? null)
-      return { ...state, folders, boards, cards, meetings, activeBoardId, status: 'ready' }
+      return { ...state, folders, boards, cards, meetings, deliverables, activeBoardId, status: 'ready' }
     }
 
     /* meeting boards */
@@ -266,6 +270,7 @@ function reducer(state, action) {
         boards: state.boards.filter((b) => b.id !== action.id),
         cards: state.cards.filter((c) => c.boardId !== action.id),
         meetings: state.meetings.filter((m) => m.boardId !== action.id),
+        deliverables: state.deliverables.filter((d) => d.boardId !== action.id),
         activeBoardId: state.activeBoardId === action.id ? null : state.activeBoardId,
       }
 
@@ -514,6 +519,65 @@ function reducer(state, action) {
       }
     }
 
+    /* deliverables & pricing */
+
+    case 'addDeliverable':
+      return {
+        ...state,
+        deliverables: [
+          ...state.deliverables,
+          {
+            id: action.id,
+            boardId: action.boardId,
+            title: action.title,
+            description: '',
+            price: action.price ?? 0,
+            currency: action.currency ?? 'USD',
+            status: 'planned',
+            approved: false,
+            approvedAt: null,
+            paid: false,
+            paidAt: null,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      }
+
+    case 'updateDeliverable':
+      return {
+        ...state,
+        deliverables: state.deliverables.map((d) =>
+          d.id === action.id ? { ...d, ...action.patch } : d,
+        ),
+      }
+
+    case 'approveDeliverable':
+      return {
+        ...state,
+        deliverables: state.deliverables.map((d) =>
+          d.id === action.id
+            ? {
+                ...d,
+                approved: action.approved,
+                approvedAt: action.approved ? new Date().toISOString() : null,
+              }
+            : d,
+        ),
+      }
+
+    case 'releasePayment':
+      return {
+        ...state,
+        deliverables: state.deliverables.map((d) =>
+          d.boardId === action.boardId && d.status === 'completed' && d.approved && !d.paid
+            ? { ...d, paid: true, paidAt: new Date().toISOString() }
+            : d,
+        ),
+      }
+
+    case 'deleteDeliverable':
+      return { ...state, deliverables: state.deliverables.filter((d) => d.id !== action.id) }
+
     /* reminders */
 
     case 'markNotified': {
@@ -558,6 +622,7 @@ function prepare(action) {
     case 'addList':
     case 'addCard':
     case 'addMeeting':
+    case 'addDeliverable':
       return { ...action, id: action.id ?? newId() }
     case 'addBoard':
       return {
@@ -710,6 +775,31 @@ async function persist(action, before, after) {
     case 'deleteMeeting':
       return api.deleteMeeting(action.id)
 
+    case 'addDeliverable': {
+      const list = after.deliverables.filter((d) => d.boardId === action.boardId)
+      return api.createDeliverable({
+        id: action.id,
+        boardId: action.boardId,
+        title: action.title,
+        price: action.price ?? 0,
+        currency: action.currency ?? 'USD',
+        sortOrder: list.length - 1,
+        createdBy: user.email,
+      })
+    }
+
+    case 'updateDeliverable':
+      return api.updateDeliverable(action.id, action.patch)
+
+    case 'approveDeliverable':
+      return api.approveDeliverable(action.id, action.approved)
+
+    case 'releasePayment':
+      return api.releasePayment(action.boardId)
+
+    case 'deleteDeliverable':
+      return api.deleteDeliverable(action.id)
+
     default:
       return undefined
   }
@@ -802,7 +892,7 @@ export function StoreProvider({ children }) {
     }
 
     const channel = supabase.channel(`workspace-${userId}`)
-    ;['folders', 'folder_members', 'boards', 'board_members', 'lists', 'cards'].forEach((table) => {
+    ;['folders', 'folder_members', 'boards', 'board_members', 'lists', 'cards', 'deliverables'].forEach((table) => {
       channel.on('postgres_changes', { event: '*', schema: 'public', table }, nudge)
     })
 

@@ -5,6 +5,7 @@ import { useStore, ACCENTS, accentOf, ROLES, roleOf, canManage } from '../store'
 
 const VIEW_TITLES = {
   board: 'Board',
+  deliverables: 'Deliverables & Pricing',
   planner: 'Planner',
   inbox: 'Inbox',
   boards: 'Projects',
@@ -49,7 +50,7 @@ export function TopBar({
     setRenaming(false)
   }
 
-  const onBoard = view === 'board' && board
+  const onBoard = (view === 'board' || view === 'deliverables') && board
   const myRole = board ? roleOf(board, state.user?.id) : null
   const mayManage = board ? canManage(board, state.user) : false
 
@@ -124,7 +125,7 @@ export function TopBar({
             />
           </div>
 
-          {onBoard && (
+          {view === 'board' && board && (
             <button
               onClick={onToggleCalendar}
               className={`p-2 rounded-lg transition ${
@@ -336,6 +337,7 @@ function SidebarContent({ activeBoardId, onOpenBoard, view, onChangeView, onClos
 
   const nav = [
     { key: 'board', label: 'Current board', icon: 'board' },
+    { key: 'deliverables', label: 'Deliverables', icon: 'cash' },
     { key: 'overview', label: 'Overview', icon: 'overview' },
     { key: 'planner', label: 'Planner', icon: 'planner' },
     { key: 'inbox', label: 'Inbox', icon: 'inbox' },

@@ -44,6 +44,23 @@ export const meetingFrom = (row) => ({
   updatedAt: row.updated_at,
 })
 
+const deliverableFrom = (row) => ({
+  id: row.id,
+  boardId: row.board_id,
+  title: row.title,
+  description: row.description ?? '',
+  price: Number(row.price ?? 0),
+  currency: row.currency ?? 'USD',
+  status: row.status ?? 'planned',
+  approved: Boolean(row.approved),
+  approvedAt: row.approved_at,
+  paid: Boolean(row.paid),
+  paidAt: row.paid_at,
+  sortOrder: row.sort_order ?? 0,
+  createdBy: clean(row.created_by),
+  createdAt: row.created_at,
+})
+
 /* ---------------- reading ---------------- */
 
 /** Marks invitations that were waiting for this address as accepted. */
@@ -53,17 +70,19 @@ export const acceptInvitations = async () => {
 }
 
 export async function loadWorkspace() {
-  const [folders, folderMembers, boards, boardMembers, lists, cards, meetings] = await Promise.all([
-    supabase.from('folders').select('*').order('created_at'),
-    supabase.from('folder_members').select('*'),
-    supabase.from('boards').select('*').order('created_at'),
-    supabase.from('board_members').select('*'),
-    supabase.from('lists').select('*').order('sort_order'),
-    supabase.from('cards').select('*').order('sort_order'),
-    supabase.from('meeting_boards').select('*').order('updated_at', { ascending: false }),
-  ])
+  const [folders, folderMembers, boards, boardMembers, lists, cards, meetings, deliverables] =
+    await Promise.all([
+      supabase.from('folders').select('*').order('created_at'),
+      supabase.from('folder_members').select('*'),
+      supabase.from('boards').select('*').order('created_at'),
+      supabase.from('board_members').select('*'),
+      supabase.from('lists').select('*').order('sort_order'),
+      supabase.from('cards').select('*').order('sort_order'),
+      supabase.from('meeting_boards').select('*').order('updated_at', { ascending: false }),
+      supabase.from('deliverables').select('*').order('sort_order'),
+    ])
 
-  const failed = [folders, folderMembers, boards, boardMembers, lists, cards, meetings].find(
+  const failed = [folders, folderMembers, boards, boardMembers, lists, cards, meetings, deliverables].find(
     (r) => r.error,
   )
   if (failed) throw failed.error
@@ -118,6 +137,7 @@ export async function loadWorkspace() {
     boards: shapedBoards,
     cards: cards.data.map(cardFrom),
     meetings: meetings.data.map(meetingFrom),
+    deliverables: deliverables.data.map(deliverableFrom),
   }
 }
 
@@ -347,6 +367,48 @@ export const sendInvite = async ({ scope, id, email, name, role, label }) => {
   }
 
   return data
+}
+
+/* ---------------- deliverables & pricing ---------------- */
+
+export const createDeliverable = async ({ id, boardId, title, price, currency, sortOrder, createdBy }) => {
+  const { error } = await supabase.from('deliverables').insert({
+    id,
+    board_id: boardId,
+    title,
+    price: price ?? 0,
+    currency: currency ?? 'USD',
+    sort_order: sortOrder ?? 0,
+    created_by: createdBy,
+  })
+  if (error) throw error
+}
+
+export const updateDeliverable = async (id, patch) => {
+  const row = {}
+  if ('title' in patch) row.title = patch.title
+  if ('description' in patch) row.description = patch.description
+  if ('price' in patch) row.price = patch.price
+  if ('currency' in patch) row.currency = patch.currency
+  if ('status' in patch) row.status = patch.status
+  if (Object.keys(row).length === 0) return
+  const { error } = await supabase.from('deliverables').update(row).eq('id', id)
+  if (error) throw error
+}
+
+export const approveDeliverable = async (id, approved) => {
+  const { error } = await supabase.rpc('approve_deliverable', { p_id: id, p_approved: approved })
+  if (error) throw error
+}
+
+export const releasePayment = async (boardId) => {
+  const { error } = await supabase.rpc('release_payment', { p_board: boardId })
+  if (error) throw error
+}
+
+export const deleteDeliverable = async (id) => {
+  const { error } = await supabase.from('deliverables').delete().eq('id', id)
+  if (error) throw error
 }
 
 /* ---------------- meeting boards ---------------- */
