@@ -163,6 +163,30 @@ function BoardCard({ board, onOpen }) {
   )
 }
 
+function NotepadCard({ folder, onOpen }) {
+  const preview = (folder.notes ?? '').trim()
+
+  return (
+    <button
+      onClick={() => onOpen(folder.id)}
+      className="group relative rounded-xl border border-line bg-surface shadow-xs hover:shadow-md hover:border-line-strong transition overflow-hidden text-left"
+    >
+      <span className="block h-1 bg-warning" />
+      <div className="p-4">
+        <div className="flex items-center gap-2">
+          <span className="grid place-items-center w-7 h-7 rounded-lg bg-warning-soft text-warning shrink-0">
+            <Icon name="note" className="w-4 h-4" />
+          </span>
+          <p className="font-semibold text-ink truncate">Notepad</p>
+        </div>
+        <p className="mt-2.5 text-xs text-ink-3 line-clamp-3 min-h-[2.5rem]">
+          {preview || 'General points and notes — jot something down before it becomes a task.'}
+        </p>
+      </div>
+    </button>
+  )
+}
+
 export default function BoardsView({ onOpenBoard, onManageFolder }) {
   const { state, dispatch } = useStore()
   const [newBoardFolder, setNewBoardFolder] = useState(null)
@@ -226,15 +250,6 @@ export default function BoardsView({ onOpenBoard, onManageFolder }) {
                   </span>
                 </button>
 
-                <button
-                  onClick={() => setNotepadFolderId(folder.id)}
-                  className="inline-flex items-center gap-2 rounded-lg border border-line-strong bg-surface px-2 py-1 text-xs font-medium text-ink-2 hover:bg-muted hover:text-ink transition"
-                  title={`Notepad for ${folder.name}`}
-                >
-                  <Icon name="note" className="w-4 h-4" />
-                  <span className="hidden xs:inline">Notepad</span>
-                </button>
-
                 <div className="flex items-center gap-1">
                   {canManageFolder(folder, state.user) && (
                   <button
@@ -267,6 +282,7 @@ export default function BoardsView({ onOpenBoard, onManageFolder }) {
               </header>
 
               <div className="grid gap-3 grid-cols-1 xs:grid-cols-2 lg:grid-cols-3">
+                <NotepadCard folder={folder} onOpen={setNotepadFolderId} />
                 {boards.map((b) => (
                   <BoardCard key={b.id} board={b} onOpen={onOpenBoard} />
                 ))}

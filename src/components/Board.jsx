@@ -151,7 +151,7 @@ export default function Board({ board, onOpenCard, query, calendarOpen, onCloseC
       >
         <div className="space-y-3 min-w-0">
         {!searching && (
-          <div className="flex items-center justify-center gap-2.5 rounded-lg border border-line bg-surface px-2 py-1 shadow-xs">
+          <div className="flex items-center justify-center gap-2.5 rounded-lg border border-line-strong bg-surface px-2 py-1 shadow-xs">
             <button
               onClick={() => setDayOffset((o) => o - 1)}
               className="p-1 rounded-md text-ink-3 hover:text-ink hover:bg-muted transition"
@@ -160,7 +160,7 @@ export default function Board({ board, onOpenCard, query, calendarOpen, onCloseC
               <Icon name="chevron" className="w-3.5 h-3.5 rotate-180" />
             </button>
             <div className="flex items-baseline gap-1.5 min-w-[6.5rem] justify-center">
-              <p className="text-xs font-semibold text-ink">{formatDayKey(viewedKey)}</p>
+              <p className="text-sm font-bold text-ink">{formatDayKey(viewedKey)}</p>
               {!isToday && (
                 <button
                   onClick={() => setDayOffset(0)}
