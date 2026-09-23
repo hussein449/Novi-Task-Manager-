@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Icon, Avatar, Button, Modal, Field, inputClass, EmptyState } from './ui'
-import { useStore, canEdit, deliverablesOfBoard, cardsOfBoard, memberFor } from '../store'
+import { useStore, canEdit, deliverablesOfBoard, cardsOfBoard, memberFor, isAssignedTo } from '../store'
 
 const STATUS = {
   planned: { label: 'Planned', chip: 'bg-slate-50 text-slate-600 border-slate-200' },
@@ -315,8 +315,16 @@ function TaskPriceRow({ card, member, mayEdit }) {
 
 /* ---------------- the view ---------------- */
 
-export default function DeliverablesView({ board }) {
+export default function DeliverablesView({ board: initialBoard }) {
   const { state, dispatch } = useStore()
+
+  // Its own project switcher, independent of whatever board is "active"
+  // elsewhere — picking a different project here doesn't jump you away from
+  // whatever you were doing on the board itself.
+  const [boardId, setBoardId] = useState(initialBoard.id)
+  useEffect(() => setBoardId(initialBoard.id), [initialBoard.id])
+  const board = state.boards.find((b) => b.id === boardId) ?? initialBoard
+
   const mayEdit = canEdit(board, state.user)
   const [adding, setAdding] = useState(false)
 
@@ -347,6 +355,17 @@ export default function DeliverablesView({ board }) {
     }
   }, [items, tasks])
 
+  // Only tasks carry an assignee — manual deliverables aren't tied to anyone
+  // in particular, so they don't factor into this breakdown.
+  const perPerson = useMemo(() => {
+    const rows = board.members.map((m) => ({
+      member: m,
+      total: tasks.filter((c) => isAssignedTo(c, m.id)).reduce((sum, c) => sum + (c.price || 0), 0),
+    }))
+    const unassigned = tasks.filter((c) => !c.assigneeId).reduce((sum, c) => sum + (c.price || 0), 0)
+    return { rows, unassigned }
+  }, [board.members, tasks])
+
   const releasePayment = () => {
     if (totals.readyToPay <= 0) return
     const ok = window.confirm(
@@ -359,9 +378,32 @@ export default function DeliverablesView({ board }) {
 
   return (
     <div className="px-4 sm:px-6 max-w-3xl mx-auto w-full">
-      <div className="mb-5">
-        <h1 className="text-xl font-semibold text-ink tracking-tight">Deliverables & Pricing</h1>
-        <p className="text-sm text-ink-3 mt-0.5">Every task on {board.name}, and what's owed for it.</p>
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-ink tracking-tight">Deliverables & Pricing</h1>
+          <p className="text-sm text-ink-3 mt-0.5">Every task on {board.name}, and what's owed for it.</p>
+        </div>
+
+        <select
+          value={board.id}
+          onChange={(e) => setBoardId(e.target.value)}
+          className={`${inputClass} w-auto max-w-[14rem] py-1.5`}
+          aria-label="Switch project"
+        >
+          {state.folders.map((folder) => {
+            const folderBoards = state.boards.filter((b) => b.folderId === folder.id)
+            if (folderBoards.length === 0) return null
+            return (
+              <optgroup key={folder.id} label={folder.name}>
+                {folderBoards.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </optgroup>
+            )
+          })}
+        </select>
       </div>
 
       <section className="mb-8">
@@ -384,7 +426,7 @@ export default function DeliverablesView({ board }) {
         )}
       </section>
 
-      <section className={showFooter ? 'pb-24' : ''}>
+      <section className="mb-8">
         <div className="flex items-center justify-between gap-3 mb-3">
           <h2 className="text-sm font-semibold text-ink">Other deliverables</h2>
           {mayEdit && (
@@ -418,6 +460,34 @@ export default function DeliverablesView({ board }) {
           </div>
         )}
       </section>
+
+      {tasks.length > 0 && (
+        <section className="mb-8">
+          <h2 className="text-sm font-semibold text-ink mb-3">Totals by person</h2>
+          <div className="rounded-xl border border-line bg-surface divide-y divide-line overflow-hidden">
+            {perPerson.rows.map(({ member, total }) => (
+              <div key={member.id} className="flex items-center gap-3 px-4 py-2.5">
+                <Avatar user={member} size={24} />
+                <span className="text-sm text-ink truncate flex-1">{member.name}</span>
+                <span className="text-sm font-semibold text-ink tabular-nums">
+                  {money(total, totals.currency)}
+                </span>
+              </div>
+            ))}
+            {perPerson.unassigned > 0 && (
+              <div className="flex items-center gap-3 px-4 py-2.5">
+                <Avatar user={null} size={24} />
+                <span className="text-sm text-ink-3 flex-1">Unassigned</span>
+                <span className="text-sm font-semibold text-ink tabular-nums">
+                  {money(perPerson.unassigned, totals.currency)}
+                </span>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {showFooter && <div className="pb-16" />}
 
       {showFooter && (
         <div className="sticky bottom-16 lg:bottom-0 z-10 -mx-4 sm:-mx-6 border-t border-line bg-surface/95 backdrop-blur px-4 sm:px-6 py-3.5 shadow-[0_-4px_12px_rgba(0,0,0,0.04)]">
