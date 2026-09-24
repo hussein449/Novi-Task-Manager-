@@ -125,8 +125,9 @@ function DeliverableRow({ deliverable, board, member, mayEdit, onDelete }) {
     patch({
       title,
       description: draft.description ?? '',
-      price: Number(draft.price) || 0,
-      currency: draft.currency || 'USD',
+      // Locked once paid, regardless of what the (disabled) fields hold.
+      price: deliverable.paid ? deliverable.price : Number(draft.price) || 0,
+      currency: deliverable.paid ? deliverable.currency : draft.currency || 'USD',
       assigneeId: draft.assigneeId || null,
     })
     setEditing(false)
@@ -166,11 +167,13 @@ function DeliverableRow({ deliverable, board, member, mayEdit, onDelete }) {
             step="0.01"
             value={draft.price}
             onChange={(e) => setDraft({ ...draft, price: e.target.value })}
+            disabled={deliverable.paid}
             className={inputClass}
           />
           <select
             value={draft.currency}
             onChange={(e) => setDraft({ ...draft, currency: e.target.value })}
+            disabled={deliverable.paid}
             className={inputClass}
           >
             {CURRENCIES.map((c) => (
@@ -180,6 +183,9 @@ function DeliverableRow({ deliverable, board, member, mayEdit, onDelete }) {
             ))}
           </select>
         </div>
+        {deliverable.paid && (
+          <p className="text-xs text-ink-3">Locked — paid amounts cannot be changed.</p>
+        )}
         <select
           value={draft.assigneeId ?? ''}
           onChange={(e) => setDraft({ ...draft, assigneeId: e.target.value })}
@@ -301,6 +307,7 @@ function TaskPriceRow({ card, member, mayEdit, onDelete }) {
   useEffect(() => setPrice(String(card.price ?? 0)), [card.id, card.price])
 
   const save = () => {
+    if (card.paid) return
     const value = Number(price) || 0
     if (value !== (card.price ?? 0)) {
       dispatch({ type: 'updateCard', id: card.id, patch: { price: value } })
@@ -333,7 +340,7 @@ function TaskPriceRow({ card, member, mayEdit, onDelete }) {
         </span>
       )}
 
-      {mayEdit ? (
+      {mayEdit && !card.paid ? (
         <div className="shrink-0 flex items-center gap-1">
           <span className="text-ink-3 text-sm">$</span>
           <input
@@ -348,7 +355,10 @@ function TaskPriceRow({ card, member, mayEdit, onDelete }) {
           />
         </div>
       ) : (
-        <p className="shrink-0 font-semibold text-ink tabular-nums w-24 text-right">
+        <p
+          className="shrink-0 font-semibold text-ink tabular-nums w-24 text-right"
+          title={card.paid ? 'Locked — paid amounts cannot be changed' : undefined}
+        >
           {money(card.price, 'USD')}
         </p>
       )}
@@ -473,31 +483,20 @@ export default function DeliverablesView({ board: initialBoard }) {
         </select>
       </div>
 
-      <div className="flex items-center gap-1.5 mb-6 overflow-x-auto no-scrollbar">
-        <button
-          onClick={() => setPersonFilter('all')}
-          className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium border transition ${
-            personFilter === 'all'
-              ? 'border-primary bg-primary-soft text-primary'
-              : 'border-line text-ink-2 hover:bg-muted'
-          }`}
+      <div className="mb-6">
+        <label className="block text-xs font-medium text-ink-3 mb-1">Filter by person</label>
+        <select
+          value={personFilter}
+          onChange={(e) => setPersonFilter(e.target.value)}
+          className={`${inputClass} w-auto max-w-[14rem] py-1.5`}
         >
-          Everyone
-        </button>
-        {board.members.map((m) => (
-          <button
-            key={m.id}
-            onClick={() => setPersonFilter(personFilter === m.id ? 'all' : m.id)}
-            className={`shrink-0 inline-flex items-center gap-1.5 rounded-full pl-1 pr-2.5 py-1 text-xs font-medium border transition ${
-              personFilter === m.id
-                ? 'border-primary bg-primary-soft text-primary'
-                : 'border-line text-ink-2 hover:bg-muted'
-            }`}
-          >
-            <Avatar user={m} size={18} />
-            <span className="max-w-24 truncate">{m.name.split(' ')[0]}</span>
-          </button>
-        ))}
+          <option value="all">Everyone</option>
+          {board.members.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       <section className="mb-8">
