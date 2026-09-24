@@ -175,6 +175,32 @@ export const Button = ({ variant = 'primary', size = 'md', className = '', ...pr
   )
 }
 
+/**
+ * Use this instead of window.confirm() for anything that matters: a native
+ * confirm() is silently suppressed inside embedded/automated browser panes
+ * (no dialog, no error — it just returns false), so a delete gated on it can
+ * look broken with no visible cause.
+ */
+export const ConfirmModal = ({ title, message, confirmLabel = 'Delete', danger = true, onConfirm, onClose }) => (
+  <Modal open onClose={onClose} title={title}>
+    <p className="text-sm text-ink-2">{message}</p>
+    <div className="flex gap-2 mt-6">
+      <Button
+        variant={danger ? 'danger' : 'success'}
+        onClick={() => {
+          onConfirm()
+          onClose()
+        }}
+      >
+        {confirmLabel}
+      </Button>
+      <Button variant="ghost" onClick={onClose}>
+        Cancel
+      </Button>
+    </div>
+  </Modal>
+)
+
 export const EmptyState = ({ icon = 'sparkle', title, hint, action }) => (
   <div className="flex flex-col items-center justify-center text-center py-14 px-6">
     <div className="mb-3 grid place-items-center w-11 h-11 rounded-full bg-muted text-ink-3">

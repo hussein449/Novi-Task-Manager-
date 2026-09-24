@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Icon, Button, AvatarStack, Modal, Field, inputClass, EmptyState } from './ui'
+import { Icon, Button, AvatarStack, Modal, Field, inputClass, EmptyState, ConfirmModal } from './ui'
 import FolderNotepadModal from './FolderNotepadModal'
 import { useStore, ACCENTS, accentOf, cardsOfBoard, folderMembers, canManageFolder } from '../store'
 
@@ -114,8 +114,8 @@ function NewFolderModal({ onClose }) {
   )
 }
 
-function BoardCard({ board, onOpen }) {
-  const { state, dispatch } = useStore()
+function BoardCard({ board, onOpen, onDelete }) {
+  const { state } = useStore()
   const cards = cardsOfBoard(state, board.id)
   const done = cards.filter((c) => c.done).length
   const pct = cards.length ? Math.round((done / cards.length) * 100) : 0
@@ -149,11 +149,7 @@ function BoardCard({ board, onOpen }) {
         </div>
       </button>
       <button
-        onClick={() => {
-          if (window.confirm(`Delete the board "${board.name}" and all of its cards?`)) {
-            dispatch({ type: 'deleteBoard', id: board.id })
-          }
-        }}
+        onClick={onDelete}
         className="absolute top-3 right-2 p-1.5 rounded-md text-ink-3 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-danger hover:bg-danger-soft transition"
         aria-label={`Delete ${board.name}`}
       >
@@ -202,6 +198,7 @@ export default function BoardsView({ onOpenBoard, onManageFolder }) {
   const [newBoardFolder, setNewBoardFolder] = useState(null)
   const [newFolder, setNewFolder] = useState(false)
   const [notepadFolderId, setNotepadFolderId] = useState(null)
+  const [confirm, setConfirm] = useState(null)
 
   const closeBoardModal = (reason) => {
     setNewBoardFolder(null)
@@ -276,11 +273,15 @@ export default function BoardsView({ onOpenBoard, onManageFolder }) {
                   )}
                   {canManageFolder(folder, state.user) && (
                   <button
-                    onClick={() => {
-                      if (window.confirm(`Delete "${folder.name}" and its ${boards.length} board(s)?`)) {
-                        dispatch({ type: 'deleteFolder', id: folder.id })
-                      }
-                    }}
+                    onClick={() =>
+                      setConfirm({
+                        title: 'Delete folder?',
+                        message: `Delete "${folder.name}" and its ${boards.length} board(s)? This can't be undone.`,
+                        confirmLabel: 'Delete',
+                        danger: true,
+                        onConfirm: () => dispatch({ type: 'deleteFolder', id: folder.id }),
+                      })
+                    }
                     className="p-1.5 rounded-md text-ink-3 hover:text-danger hover:bg-danger-soft transition"
                     aria-label={`Delete ${folder.name}`}
                     title="Delete folder"
@@ -294,7 +295,20 @@ export default function BoardsView({ onOpenBoard, onManageFolder }) {
               <div className="grid gap-3 grid-cols-1 xs:grid-cols-2 lg:grid-cols-3">
                 <NotepadCard folder={folder} onOpen={setNotepadFolderId} />
                 {boards.map((b) => (
-                  <BoardCard key={b.id} board={b} onOpen={onOpenBoard} />
+                  <BoardCard
+                    key={b.id}
+                    board={b}
+                    onOpen={onOpenBoard}
+                    onDelete={() =>
+                      setConfirm({
+                        title: 'Delete board?',
+                        message: `Delete the board "${b.name}" and all of its cards? This can't be undone.`,
+                        confirmLabel: 'Delete',
+                        danger: true,
+                        onConfirm: () => dispatch({ type: 'deleteBoard', id: b.id }),
+                      })
+                    }
+                  />
                 ))}
                 <button
                   onClick={() => setNewBoardFolder(folder.id)}
@@ -318,6 +332,8 @@ export default function BoardsView({ onOpenBoard, onManageFolder }) {
             <FolderNotepadModal folder={folder} onClose={() => setNotepadFolderId(null)} />
           ) : null
         })()}
+
+      {confirm && <ConfirmModal {...confirm} onClose={() => setConfirm(null)} />}
     </div>
   )
 }

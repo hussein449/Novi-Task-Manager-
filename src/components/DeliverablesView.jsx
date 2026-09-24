@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Icon, Avatar, Button, Modal, Field, inputClass, EmptyState } from './ui'
+import { Icon, Avatar, Button, Modal, Field, inputClass, EmptyState, ConfirmModal } from './ui'
 import { useStore, canEdit, deliverablesOfBoard, cardsOfBoard, memberFor, isAssignedTo, EVERYONE } from '../store'
 import { formatDue } from '../lib/utils'
 
@@ -13,34 +13,6 @@ const CURRENCIES = ['USD', 'EUR', 'GBP']
 
 const money = (value, currency) =>
   new Intl.NumberFormat(undefined, { style: 'currency', currency: currency || 'USD' }).format(value || 0)
-
-/* ---------------- confirm ----------------
- * A native window.confirm() gets silently suppressed inside embedded/
- * automated browser panes (it just returns false, no dialog, no error), so
- * every confirm-gated action here goes through this instead.
- */
-
-function ConfirmModal({ title, message, confirmLabel, danger, onConfirm, onClose }) {
-  return (
-    <Modal open onClose={onClose} title={title}>
-      <p className="text-sm text-ink-2">{message}</p>
-      <div className="flex gap-2 mt-6">
-        <Button
-          variant={danger ? 'danger' : 'success'}
-          onClick={() => {
-            onConfirm()
-            onClose()
-          }}
-        >
-          {confirmLabel}
-        </Button>
-        <Button variant="ghost" onClick={onClose}>
-          Cancel
-        </Button>
-      </div>
-    </Modal>
-  )
-}
 
 /* ---------------- add ---------------- */
 
@@ -411,6 +383,11 @@ export default function DeliverablesView({ board: initialBoard }) {
   const [adding, setAdding] = useState(false)
   const [confirm, setConfirm] = useState(null)
 
+  // Filtering by person is a page-local view, not a data change — reset it
+  // whenever the project switcher picks a different board.
+  const [personFilter, setPersonFilter] = useState('all')
+  useEffect(() => setPersonFilter('all'), [board.id])
+
   const items = useMemo(() => deliverablesOfBoard(state, board.id), [state, board.id])
 
   // Every task on the board, pulled in automatically — not-done first, then
@@ -418,6 +395,15 @@ export default function DeliverablesView({ board: initialBoard }) {
   const tasks = useMemo(
     () => [...cardsOfBoard(state, board.id)].sort((a, b) => Number(a.done) - Number(b.done)),
     [state, board.id],
+  )
+
+  const visibleTasks = useMemo(
+    () => (personFilter === 'all' ? tasks : tasks.filter((c) => isAssignedTo(c, personFilter))),
+    [tasks, personFilter],
+  )
+  const visibleItems = useMemo(
+    () => (personFilter === 'all' ? items : items.filter((d) => isAssignedTo(d, personFilter))),
+    [items, personFilter],
   )
 
   // Tasks and manual deliverables can both carry an assignee, so both count
@@ -482,15 +468,42 @@ export default function DeliverablesView({ board: initialBoard }) {
         </select>
       </div>
 
+      <div className="flex items-center gap-1.5 mb-6 overflow-x-auto no-scrollbar">
+        <button
+          onClick={() => setPersonFilter('all')}
+          className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium border transition ${
+            personFilter === 'all'
+              ? 'border-primary bg-primary-soft text-primary'
+              : 'border-line text-ink-2 hover:bg-muted'
+          }`}
+        >
+          Everyone
+        </button>
+        {board.members.map((m) => (
+          <button
+            key={m.id}
+            onClick={() => setPersonFilter(personFilter === m.id ? 'all' : m.id)}
+            className={`shrink-0 inline-flex items-center gap-1.5 rounded-full pl-1 pr-2.5 py-1 text-xs font-medium border transition ${
+              personFilter === m.id
+                ? 'border-primary bg-primary-soft text-primary'
+                : 'border-line text-ink-2 hover:bg-muted'
+            }`}
+          >
+            <Avatar user={m} size={18} />
+            <span className="max-w-24 truncate">{m.name.split(' ')[0]}</span>
+          </button>
+        ))}
+      </div>
+
       <section className="mb-8">
         <h2 className="text-sm font-semibold text-ink mb-3">Tasks</h2>
-        {tasks.length === 0 ? (
+        {visibleTasks.length === 0 ? (
           <p className="rounded-xl border border-dashed border-line-strong text-sm text-ink-3 px-4 py-6 text-center">
-            No tasks on this board yet.
+            {personFilter === 'all' ? 'No tasks on this board yet.' : 'No tasks assigned to this person.'}
           </p>
         ) : (
           <div className="space-y-2.5">
-            {tasks.map((card) => (
+            {visibleTasks.map((card) => (
               <TaskPriceRow
                 key={card.id}
                 card={card}
@@ -522,15 +535,17 @@ export default function DeliverablesView({ board: initialBoard }) {
           )}
         </div>
 
-        {items.length === 0 ? (
+        {visibleItems.length === 0 ? (
           <p className="rounded-xl border border-dashed border-line-strong text-sm text-ink-3 px-4 py-6 text-center">
-            {mayEdit
-              ? 'Anything billable that isn’t a task — a flat fee, a retainer — goes here.'
-              : 'Nothing has been added here yet.'}
+            {personFilter !== 'all'
+              ? 'Nothing assigned to this person.'
+              : mayEdit
+                ? 'Anything billable that isn’t a task — a flat fee, a retainer — goes here.'
+                : 'Nothing has been added here yet.'}
           </p>
         ) : (
           <div className="space-y-3">
-            {items.map((d) => (
+            {visibleItems.map((d) => (
               <DeliverableRow
                 key={d.id}
                 deliverable={d}
@@ -552,7 +567,7 @@ export default function DeliverablesView({ board: initialBoard }) {
         )}
       </section>
 
-      {tasks.length > 0 && (
+      {personFilter === 'all' && tasks.length > 0 && (
         <section className="mb-8">
           <h2 className="text-sm font-semibold text-ink mb-3">Totals by person</h2>
           <div className="rounded-xl border border-line bg-surface divide-y divide-line overflow-hidden">
