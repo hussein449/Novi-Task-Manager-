@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useDroppable } from '@dnd-kit/core'
 import TaskRow, { RowFace } from './TaskRow'
-import { Icon } from './ui'
+import { Icon, ConfirmModal } from './ui'
 import { useStore, memberFor } from '../store'
 import { dateKey, dateKeyOffset, formatDayKey } from '../lib/utils'
 
@@ -35,6 +35,7 @@ export default function StatusGroup({
   const [renaming, setRenaming] = useState(false)
   const [listTitle, setListTitle] = useState(list.title)
   const [collapsed, setCollapsed] = useState(false)
+  const [confirm, setConfirm] = useState(null)
   const inputRef = useRef(null)
   const menuRef = useRef(null)
 
@@ -89,6 +90,18 @@ export default function StatusGroup({
   }
 
   const handleToggle = showDaily ? toggleDaily : (id) => dispatch({ type: 'toggleDone', id })
+
+  const handleDelete = (id) => {
+    const card = cards.find((c) => c.id === id)
+    if (!card) return
+    setConfirm({
+      title: 'Delete task?',
+      message: `Delete "${card.title}"? This can't be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: () => dispatch({ type: 'deleteCard', id }),
+    })
+  }
 
   const submit = (e) => {
     e?.preventDefault()
@@ -253,6 +266,7 @@ export default function StatusGroup({
                     member={memberFor(board, card.assigneeId)}
                     onToggleDone={handleToggle}
                     onOpen={onOpenCard}
+                    onDelete={handleDelete}
                     meta={`Was ${formatDayKey(card.day)}`}
                     readOnly={readOnly}
                     noDrag
@@ -270,6 +284,7 @@ export default function StatusGroup({
                 member={memberFor(board, card.assigneeId)}
                 onOpen={onOpenCard}
                 onToggleDone={handleToggle}
+                onDelete={handleDelete}
                 readOnly={readOnly}
               />
             ))}
@@ -329,6 +344,8 @@ export default function StatusGroup({
           )}
         </div>
       )}
+
+      {confirm && <ConfirmModal {...confirm} onClose={() => setConfirm(null)} />}
     </section>
   )
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Icon, Avatar, Button, Modal, Field, inputClass, EmptyState, ConfirmModal } from './ui'
 import { useStore, canEdit, deliverablesOfBoard, cardsOfBoard, memberFor, isAssignedTo, EVERYONE } from '../store'
-import { formatDue } from '../lib/utils'
+import { formatDue, dateKey, dateKeyOffset, formatDayKey } from '../lib/utils'
 
 const STATUS = {
   planned: { label: 'Planned', chip: 'bg-slate-50 text-slate-600 border-slate-200' },
@@ -10,6 +10,11 @@ const STATUS = {
 }
 
 const CURRENCIES = ['USD', 'EUR', 'GBP']
+
+// Not tracked for billing on this page, by request — her tasks and
+// deliverables still show normally everywhere else in the app. Remove this
+// to include her again.
+const BILLING_EXCLUDED = ['zeinaghaddar626@gmail.com']
 
 const money = (value, currency) =>
   new Intl.NumberFormat(undefined, { style: 'currency', currency: currency || 'USD' }).format(value || 0)
@@ -82,11 +87,13 @@ function AddDeliverableModal({ board, onClose }) {
             >
               <option value="">Unassigned</option>
               <option value={EVERYONE}>Everyone</option>
-              {board.members.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
+              {board.members
+                .filter((m) => !BILLING_EXCLUDED.includes(m.id))
+                .map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
             </select>
           </Field>
         </div>
@@ -193,7 +200,9 @@ function DeliverableRow({ deliverable, board, member, mayEdit, onDelete }) {
         >
           <option value="">Unassigned</option>
           <option value={EVERYONE}>Everyone</option>
-          {board.members.map((m) => (
+          {board.members
+            .filter((m) => !BILLING_EXCLUDED.includes(m.id))
+            .map((m) => (
             <option key={m.id} value={m.id}>
               {m.name}
             </option>
@@ -393,17 +402,33 @@ export default function DeliverablesView({ board: initialBoard }) {
   const [adding, setAdding] = useState(false)
   const [confirm, setConfirm] = useState(null)
 
-  // Filtering by person is a page-local view, not a data change — reset it
-  // whenever the project switcher picks a different board.
+  // Filtering by person, and paging through the days tasks were created, are
+  // both page-local views, not data changes — reset when the project
+  // switcher picks a different board.
   const [personFilter, setPersonFilter] = useState('all')
-  useEffect(() => setPersonFilter('all'), [board.id])
+  const [taskDayOffset, setTaskDayOffset] = useState(0)
+  useEffect(() => {
+    setPersonFilter('all')
+    setTaskDayOffset(0)
+  }, [board.id])
 
-  const items = useMemo(() => deliverablesOfBoard(state, board.id), [state, board.id])
+  const billableMembers = useMemo(
+    () => board.members.filter((m) => !BILLING_EXCLUDED.includes(m.id)),
+    [board.members],
+  )
+
+  const items = useMemo(
+    () => deliverablesOfBoard(state, board.id).filter((d) => !BILLING_EXCLUDED.includes(d.assigneeId)),
+    [state, board.id],
+  )
 
   // Every task on the board, pulled in automatically — not-done first, then
   // done, so what's still owed shows before what's already finished.
   const tasks = useMemo(
-    () => [...cardsOfBoard(state, board.id)].sort((a, b) => Number(a.done) - Number(b.done)),
+    () =>
+      [...cardsOfBoard(state, board.id)]
+        .filter((c) => !BILLING_EXCLUDED.includes(c.assigneeId))
+        .sort((a, b) => Number(a.done) - Number(b.done)),
     [state, board.id],
   )
 
@@ -416,11 +441,22 @@ export default function DeliverablesView({ board: initialBoard }) {
     [items, personFilter],
   )
 
+  // Tasks pile up fast once a board's been running a while, so the Tasks
+  // list is also paged by the day each task was created — a separate axis
+  // from the person filter above, and from perPerson's totals below (those
+  // stay whole-history regardless of which day is being viewed).
+  const taskDayKey = dateKeyOffset(taskDayOffset)
+  const isTaskToday = taskDayOffset === 0
+  const dayTasks = useMemo(
+    () => visibleTasks.filter((c) => dateKey(new Date(c.createdAt)) === taskDayKey),
+    [visibleTasks, taskDayKey],
+  )
+
   // Tasks and manual deliverables can both carry an assignee, so both count
   // here. "Owed" is just priced + unpaid — not gated on a task's done state,
   // since the freelancer decides when someone gets paid, not the app.
   const perPerson = useMemo(() => {
-    const rows = board.members.map((m) => {
+    const rows = billableMembers.map((m) => {
       const mine = [...tasks.filter((c) => isAssignedTo(c, m.id)), ...items.filter((d) => isAssignedTo(d, m.id))]
       const owed = mine.filter((x) => !x.paid && (x.price || 0) > 0)
       const paidAts = mine.filter((x) => x.paid && x.paidAt).map((x) => x.paidAt)
@@ -435,7 +471,7 @@ export default function DeliverablesView({ board: initialBoard }) {
       tasks.filter((c) => !c.assigneeId).reduce((sum, c) => sum + (c.price || 0), 0) +
       items.filter((d) => !d.assigneeId).reduce((sum, d) => sum + (d.price || 0), 0)
     return { rows, unassigned }
-  }, [board.members, tasks, items])
+  }, [billableMembers, tasks, items])
 
   // Filtering to one person narrows this to just their row — still with a
   // total and a working "Mark as paid", not hidden entirely.
@@ -491,7 +527,7 @@ export default function DeliverablesView({ board: initialBoard }) {
           className={`${inputClass} w-auto max-w-[14rem] py-1.5`}
         >
           <option value="all">Everyone</option>
-          {board.members.map((m) => (
+          {billableMembers.map((m) => (
             <option key={m.id} value={m.id}>
               {m.name}
             </option>
@@ -500,14 +536,40 @@ export default function DeliverablesView({ board: initialBoard }) {
       </div>
 
       <section className="mb-8">
-        <h2 className="text-sm font-semibold text-ink mb-3">Tasks</h2>
-        {visibleTasks.length === 0 ? (
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <h2 className="text-sm font-semibold text-ink">Tasks</h2>
+          <div className="flex items-center gap-1.5 rounded-lg border border-line-strong bg-surface px-1.5 py-1 shrink-0">
+            <button
+              onClick={() => setTaskDayOffset((o) => o - 1)}
+              className="p-1 rounded-md text-ink-3 hover:text-ink hover:bg-muted transition"
+              aria-label="Previous day"
+            >
+              <Icon name="chevron" className="w-3.5 h-3.5 rotate-180" />
+            </button>
+            <span className="text-xs font-bold text-ink px-0.5 whitespace-nowrap">
+              {formatDayKey(taskDayKey)}
+            </span>
+            <button
+              onClick={() => setTaskDayOffset((o) => Math.min(0, o + 1))}
+              disabled={isTaskToday}
+              className="p-1 rounded-md text-ink-3 hover:text-ink hover:bg-muted transition disabled:opacity-30 disabled:pointer-events-none"
+              aria-label="Next day"
+            >
+              <Icon name="chevron" className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+        <p className="text-xs text-ink-3 -mt-2 mb-3">Tasks created that day, so they don't all pile up at once.</p>
+
+        {dayTasks.length === 0 ? (
           <p className="rounded-xl border border-dashed border-line-strong text-sm text-ink-3 px-4 py-6 text-center">
-            {personFilter === 'all' ? 'No tasks on this board yet.' : 'No tasks assigned to this person.'}
+            {personFilter === 'all'
+              ? `No tasks created ${formatDayKey(taskDayKey).toLowerCase()}.`
+              : 'No tasks assigned to this person on this day.'}
           </p>
         ) : (
           <div className="space-y-2.5">
-            {visibleTasks.map((card) => (
+            {dayTasks.map((card) => (
               <TaskPriceRow
                 key={card.id}
                 card={card}

@@ -18,6 +18,7 @@ export function RowFace({
   member,
   onToggleDone,
   onOpen,
+  onDelete,
   handleProps,
   dragging = false,
   meta,
@@ -117,11 +118,25 @@ export function RowFace({
       <div className="sm:hidden shrink-0">
         <Avatar user={member} size={24} />
       </div>
+
+      {onDelete && !readOnly && !dragging && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete(card.id)
+          }}
+          className="shrink-0 p-1.5 rounded-md text-ink-3 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-danger hover:bg-danger-soft transition"
+          aria-label={`Delete ${card.title}`}
+          title="Delete task"
+        >
+          <Icon name="trash" className="w-4 h-4" />
+        </button>
+      )}
     </div>
   )
 }
 
-export default function TaskRow({ card, member, onOpen, onToggleDone, meta, readOnly = false }) {
+export default function TaskRow({ card, member, onOpen, onToggleDone, onDelete, meta, readOnly = false }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: card.id,
     data: { type: 'card', listId: card.listId },
@@ -141,6 +156,7 @@ export default function TaskRow({ card, member, onOpen, onToggleDone, meta, read
         member={member}
         onOpen={onOpen}
         onToggleDone={onToggleDone}
+        onDelete={onDelete}
         meta={meta}
         readOnly={readOnly}
         handleProps={{ ...attributes, ...listeners }}

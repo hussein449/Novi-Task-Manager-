@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Modal, Field, inputClass, Button, Avatar, Icon } from './ui'
+import { Modal, Field, inputClass, Button, Avatar, Icon, ConfirmModal } from './ui'
 import { useStore, PRIORITIES, ROLES, canEdit, roleOf, EVERYONE } from '../store'
 import { toInputValue, formatDue, dueState } from '../lib/utils'
 
@@ -17,6 +17,7 @@ export default function CardModal({ cardId, onClose }) {
   const card = state.cards.find((c) => c.id === cardId)
   const board = state.boards.find((b) => b.id === card?.boardId)
   const [draft, setDraft] = useState(card)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   useEffect(() => setDraft(card), [cardId, card])
 
@@ -198,15 +199,22 @@ export default function CardModal({ cardId, onClose }) {
             </div>
           </Field>
 
-          <Field label="Price" hint="Shows up on this project's Deliverables & Pricing page.">
+          <Field
+            label="Price"
+            hint={
+              card.paid
+                ? 'Locked — paid amounts cannot be changed.'
+                : "Shows up on this project's Deliverables & Pricing page."
+            }
+          >
             <input
               type="number"
               min="0"
               step="0.01"
-              disabled={!mayEdit}
+              disabled={!mayEdit || card.paid}
               value={draft?.price ?? 0}
               onChange={(e) => setDraft({ ...draft, price: e.target.value })}
-              onBlur={() => patch({ price: Number(draft?.price) || 0 })}
+              onBlur={() => !card.paid && patch({ price: Number(draft?.price) || 0 })}
               placeholder="0.00"
               className={inputClass}
             />
@@ -217,22 +225,27 @@ export default function CardModal({ cardId, onClose }) {
               You have view-only access to this board, so this task cannot be changed.
             </p>
           ) : (
-          <Button
-            variant="danger"
-            className="w-full"
-            onClick={() => {
-              if (window.confirm('Delete this card?')) {
-                dispatch({ type: 'deleteCard', id: card.id })
-                onClose()
-              }
-            }}
-          >
+          <Button variant="danger" className="w-full" onClick={() => setConfirmDelete(true)}>
             <Icon name="trash" className="w-4 h-4" />
             Delete task
           </Button>
           )}
         </div>
       </div>
+
+      {confirmDelete && (
+        <ConfirmModal
+          title="Delete task?"
+          message={`Delete "${card.title}"? This can't be undone.`}
+          confirmLabel="Delete"
+          danger
+          onConfirm={() => {
+            dispatch({ type: 'deleteCard', id: card.id })
+            onClose()
+          }}
+          onClose={() => setConfirmDelete(false)}
+        />
+      )}
     </Modal>
   )
 }
