@@ -427,6 +427,11 @@ export default function DeliverablesView({ board: initialBoard }) {
     return { rows, unassigned }
   }, [board.members, tasks, items])
 
+  // Filtering to one person narrows this to just their row — still with a
+  // total and a working "Mark as paid", not hidden entirely.
+  const visiblePersonRows =
+    personFilter === 'all' ? perPerson.rows : perPerson.rows.filter((row) => row.member.id === personFilter)
+
   const markPersonPaid = (row) => {
     if (row.owedTotal <= 0) return
     setConfirm({
@@ -567,11 +572,13 @@ export default function DeliverablesView({ board: initialBoard }) {
         )}
       </section>
 
-      {personFilter === 'all' && tasks.length > 0 && (
+      {visiblePersonRows.length > 0 && (
         <section className="mb-8">
-          <h2 className="text-sm font-semibold text-ink mb-3">Totals by person</h2>
+          <h2 className="text-sm font-semibold text-ink mb-3">
+            {personFilter === 'all' ? 'Totals by person' : `Total for ${visiblePersonRows[0].member.name}`}
+          </h2>
           <div className="rounded-xl border border-line bg-surface divide-y divide-line overflow-hidden">
-            {perPerson.rows.map((row) => (
+            {visiblePersonRows.map((row) => (
               <div key={row.member.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                 <Avatar user={row.member} size={26} />
                 <div className="min-w-0 flex-1">
@@ -595,7 +602,7 @@ export default function DeliverablesView({ board: initialBoard }) {
                   ))}
               </div>
             ))}
-            {perPerson.unassigned > 0 && (
+            {personFilter === 'all' && perPerson.unassigned > 0 && (
               <div className="flex items-center gap-3 px-4 py-3">
                 <Avatar user={null} size={26} />
                 <span className="text-sm text-ink-3 flex-1">Unassigned</span>
