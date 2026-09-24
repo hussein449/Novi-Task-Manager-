@@ -442,14 +442,18 @@ export default function DeliverablesView({ board: initialBoard }) {
   )
 
   // Tasks pile up fast once a board's been running a while, so the Tasks
-  // list is also paged by the day each task was created — a separate axis
-  // from the person filter above, and from perPerson's totals below (those
-  // stay whole-history regardless of which day is being viewed).
+  // list is paged by the day each task was created when browsing everyone —
+  // but once you've filtered to one person, show all of their tasks instead
+  // of intersecting with a specific day, so the list doesn't go empty next
+  // to a nonzero total (perPerson's totals are always whole-history).
   const taskDayKey = dateKeyOffset(taskDayOffset)
   const isTaskToday = taskDayOffset === 0
   const dayTasks = useMemo(
-    () => visibleTasks.filter((c) => dateKey(new Date(c.createdAt)) === taskDayKey),
-    [visibleTasks, taskDayKey],
+    () =>
+      personFilter === 'all'
+        ? visibleTasks.filter((c) => dateKey(new Date(c.createdAt)) === taskDayKey)
+        : visibleTasks,
+    [visibleTasks, taskDayKey, personFilter],
   )
 
   // Tasks and manual deliverables can both carry an assignee, so both count
@@ -538,34 +542,40 @@ export default function DeliverablesView({ board: initialBoard }) {
       <section className="mb-8">
         <div className="flex items-center justify-between gap-3 mb-3">
           <h2 className="text-sm font-semibold text-ink">Tasks</h2>
-          <div className="flex items-center gap-1.5 rounded-lg border border-line-strong bg-surface px-1.5 py-1 shrink-0">
-            <button
-              onClick={() => setTaskDayOffset((o) => o - 1)}
-              className="p-1 rounded-md text-ink-3 hover:text-ink hover:bg-muted transition"
-              aria-label="Previous day"
-            >
-              <Icon name="chevron" className="w-3.5 h-3.5 rotate-180" />
-            </button>
-            <span className="text-xs font-bold text-ink px-0.5 whitespace-nowrap">
-              {formatDayKey(taskDayKey)}
-            </span>
-            <button
-              onClick={() => setTaskDayOffset((o) => Math.min(0, o + 1))}
-              disabled={isTaskToday}
-              className="p-1 rounded-md text-ink-3 hover:text-ink hover:bg-muted transition disabled:opacity-30 disabled:pointer-events-none"
-              aria-label="Next day"
-            >
-              <Icon name="chevron" className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          {personFilter === 'all' && (
+            <div className="flex items-center gap-1.5 rounded-lg border border-line-strong bg-surface px-1.5 py-1 shrink-0">
+              <button
+                onClick={() => setTaskDayOffset((o) => o - 1)}
+                className="p-1 rounded-md text-ink-3 hover:text-ink hover:bg-muted transition"
+                aria-label="Previous day"
+              >
+                <Icon name="chevron" className="w-3.5 h-3.5 rotate-180" />
+              </button>
+              <span className="text-xs font-bold text-ink px-0.5 whitespace-nowrap">
+                {formatDayKey(taskDayKey)}
+              </span>
+              <button
+                onClick={() => setTaskDayOffset((o) => Math.min(0, o + 1))}
+                disabled={isTaskToday}
+                className="p-1 rounded-md text-ink-3 hover:text-ink hover:bg-muted transition disabled:opacity-30 disabled:pointer-events-none"
+                aria-label="Next day"
+              >
+                <Icon name="chevron" className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
-        <p className="text-xs text-ink-3 -mt-2 mb-3">Tasks created that day, so they don't all pile up at once.</p>
+        <p className="text-xs text-ink-3 -mt-2 mb-3">
+          {personFilter === 'all'
+            ? "Tasks created that day, so they don't all pile up at once."
+            : 'Every task assigned to this person, across all days.'}
+        </p>
 
         {dayTasks.length === 0 ? (
           <p className="rounded-xl border border-dashed border-line-strong text-sm text-ink-3 px-4 py-6 text-center">
             {personFilter === 'all'
               ? `No tasks created ${formatDayKey(taskDayKey).toLowerCase()}.`
-              : 'No tasks assigned to this person on this day.'}
+              : 'No tasks assigned to this person.'}
           </p>
         ) : (
           <div className="space-y-2.5">
@@ -636,7 +646,9 @@ export default function DeliverablesView({ board: initialBoard }) {
       {visiblePersonRows.length > 0 && (
         <section className="mb-8">
           <h2 className="text-sm font-semibold text-ink mb-3">
-            {personFilter === 'all' ? 'Totals by person' : `Total for ${visiblePersonRows[0].member.name}`}
+            {personFilter === 'all'
+              ? 'Totals by person (all time)'
+              : `Total for ${visiblePersonRows[0].member.name} (all time)`}
           </h2>
           <div className="rounded-xl border border-line bg-surface divide-y divide-line overflow-hidden">
             {visiblePersonRows.map((row) => (
