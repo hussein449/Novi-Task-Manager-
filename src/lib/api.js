@@ -52,6 +52,7 @@ const deliverableFrom = (row) => ({
   boardId: row.board_id,
   title: row.title,
   description: row.description ?? '',
+  assigneeId: clean(row.assignee_email) || null,
   price: Number(row.price ?? 0),
   currency: row.currency ?? 'USD',
   status: row.status ?? 'planned',
@@ -375,13 +376,23 @@ export const sendInvite = async ({ scope, id, email, name, role, label }) => {
 
 /* ---------------- deliverables & pricing ---------------- */
 
-export const createDeliverable = async ({ id, boardId, title, price, currency, sortOrder, createdBy }) => {
+export const createDeliverable = async ({
+  id,
+  boardId,
+  title,
+  price,
+  currency,
+  assigneeId,
+  sortOrder,
+  createdBy,
+}) => {
   const { error } = await supabase.from('deliverables').insert({
     id,
     board_id: boardId,
     title,
     price: price ?? 0,
     currency: currency ?? 'USD',
+    assignee_email: assigneeId ?? null,
     sort_order: sortOrder ?? 0,
     created_by: createdBy,
   })
@@ -395,6 +406,7 @@ export const updateDeliverable = async (id, patch) => {
   if ('price' in patch) row.price = patch.price
   if ('currency' in patch) row.currency = patch.currency
   if ('status' in patch) row.status = patch.status
+  if ('assigneeId' in patch) row.assignee_email = patch.assigneeId
   if ('approved' in patch) row.approved = patch.approved
   if ('paid' in patch) row.paid = patch.paid
   if ('paidAt' in patch) row.paid_at = patch.paidAt ? new Date(patch.paidAt).toISOString() : null
@@ -403,13 +415,24 @@ export const updateDeliverable = async (id, patch) => {
   if (error) throw error
 }
 
-/** Marks every done, priced, unpaid task in `ids` as paid — a freelancer
- * recording that a person has been paid, not a client-facing action. */
+/** Marks every priced, unpaid task in `ids` as paid — a freelancer recording
+ * that a person has been paid, not a client-facing action. Not gated on
+ * `done`: a task can be paid for whenever the freelancer says so. */
 export const payPerson = async (ids) => {
   if (ids.length === 0) return
   const { error } = await supabase
     .from('cards')
     .update({ paid: true, paid_at: new Date().toISOString() })
+    .in('id', ids)
+  if (error) throw error
+}
+
+/** Same, for manual deliverables. */
+export const payDeliverables = async (ids) => {
+  if (ids.length === 0) return
+  const { error } = await supabase
+    .from('deliverables')
+    .update({ approved: true, paid: true, paid_at: new Date().toISOString() })
     .in('id', ids)
   if (error) throw error
 }

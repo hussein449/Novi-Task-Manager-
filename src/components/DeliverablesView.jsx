@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Icon, Avatar, Button, Modal, Field, inputClass, EmptyState } from './ui'
-import { useStore, canEdit, deliverablesOfBoard, cardsOfBoard, memberFor, isAssignedTo } from '../store'
+import { useStore, canEdit, deliverablesOfBoard, cardsOfBoard, memberFor, isAssignedTo, EVERYONE } from '../store'
 import { formatDue } from '../lib/utils'
 
 const STATUS = {
@@ -14,23 +14,53 @@ const CURRENCIES = ['USD', 'EUR', 'GBP']
 const money = (value, currency) =>
   new Intl.NumberFormat(undefined, { style: 'currency', currency: currency || 'USD' }).format(value || 0)
 
+/* ---------------- confirm ----------------
+ * A native window.confirm() gets silently suppressed inside embedded/
+ * automated browser panes (it just returns false, no dialog, no error), so
+ * every confirm-gated action here goes through this instead.
+ */
+
+function ConfirmModal({ title, message, confirmLabel, danger, onConfirm, onClose }) {
+  return (
+    <Modal open onClose={onClose} title={title}>
+      <p className="text-sm text-ink-2">{message}</p>
+      <div className="flex gap-2 mt-6">
+        <Button
+          variant={danger ? 'danger' : 'success'}
+          onClick={() => {
+            onConfirm()
+            onClose()
+          }}
+        >
+          {confirmLabel}
+        </Button>
+        <Button variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+      </div>
+    </Modal>
+  )
+}
+
 /* ---------------- add ---------------- */
 
-function AddDeliverableModal({ boardId, onClose }) {
+function AddDeliverableModal({ board, onClose }) {
   const { dispatch } = useStore()
   const [title, setTitle] = useState('')
   const [price, setPrice] = useState('')
   const [currency, setCurrency] = useState('USD')
+  const [assigneeId, setAssigneeId] = useState('')
 
   const submit = (e) => {
     e.preventDefault()
     if (!title.trim()) return
     dispatch({
       type: 'addDeliverable',
-      boardId,
+      boardId: board.id,
       title: title.trim(),
       price: Number(price) || 0,
       currency,
+      assigneeId: assigneeId || null,
     })
     onClose()
   }
@@ -71,6 +101,24 @@ function AddDeliverableModal({ boardId, onClose }) {
           </Field>
         </div>
 
+        <div className="mt-4">
+          <Field label="Assign to">
+            <select
+              value={assigneeId}
+              onChange={(e) => setAssigneeId(e.target.value)}
+              className={inputClass}
+            >
+              <option value="">Unassigned</option>
+              <option value={EVERYONE}>Everyone</option>
+              {board.members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+
         <div className="flex gap-2 mt-6">
           <Button type="submit" disabled={!title.trim()}>
             Add deliverable
@@ -86,7 +134,7 @@ function AddDeliverableModal({ boardId, onClose }) {
 
 /* ---------------- one row ---------------- */
 
-function DeliverableRow({ deliverable, mayEdit, onDelete }) {
+function DeliverableRow({ deliverable, board, member, mayEdit, onDelete }) {
   const { dispatch } = useStore()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(deliverable)
@@ -107,6 +155,7 @@ function DeliverableRow({ deliverable, mayEdit, onDelete }) {
       description: draft.description ?? '',
       price: Number(draft.price) || 0,
       currency: draft.currency || 'USD',
+      assigneeId: draft.assigneeId || null,
     })
     setEditing(false)
   }
@@ -159,6 +208,19 @@ function DeliverableRow({ deliverable, mayEdit, onDelete }) {
             ))}
           </select>
         </div>
+        <select
+          value={draft.assigneeId ?? ''}
+          onChange={(e) => setDraft({ ...draft, assigneeId: e.target.value })}
+          className={inputClass}
+        >
+          <option value="">Unassigned</option>
+          <option value={EVERYONE}>Everyone</option>
+          {board.members.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
+            </option>
+          ))}
+        </select>
         <div className="flex gap-2">
           <Button size="sm" onClick={saveEdit}>
             Save
@@ -183,8 +245,11 @@ function DeliverableRow({ deliverable, mayEdit, onDelete }) {
   return (
     <div className="rounded-xl border border-line bg-surface p-4 shadow-xs">
       <div className="flex flex-wrap items-start gap-3">
+        <Avatar user={member} size={28} title={member ? member.name : 'Unassigned'} />
+
         <div className="min-w-0 flex-1">
           <p className="font-medium text-ink truncate">{deliverable.title}</p>
+          <p className="text-xs text-ink-3 mt-0.5 truncate">{member ? member.name : 'Unassigned'}</p>
           {deliverable.description && (
             <p className="text-sm text-ink-3 mt-0.5 line-clamp-2">{deliverable.description}</p>
           )}
@@ -214,24 +279,23 @@ function DeliverableRow({ deliverable, mayEdit, onDelete }) {
           </select>
         )}
 
-        {deliverable.status === 'completed' &&
-          (deliverable.paid ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-success-soft text-success px-2.5 py-1 text-xs font-medium">
-              <Icon name="check" className="w-3 h-3" />
-              Paid {formatDue(deliverable.paidAt)}
-              {mayEdit && (
-                <button onClick={undoPaid} className="text-success/70 hover:text-success underline">
-                  undo
-                </button>
-              )}
-            </span>
-          ) : (
-            mayEdit && (
-              <Button size="sm" variant="success" onClick={markPaid}>
-                Mark as paid
-              </Button>
-            )
-          ))}
+        {deliverable.paid ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-success-soft text-success px-2.5 py-1 text-xs font-medium">
+            <Icon name="check" className="w-3 h-3" />
+            Paid {formatDue(deliverable.paidAt)}
+            {mayEdit && (
+              <button onClick={undoPaid} className="text-success/70 hover:text-success underline">
+                undo
+              </button>
+            )}
+          </span>
+        ) : (
+          mayEdit && (
+            <Button size="sm" variant="success" onClick={markPaid}>
+              Mark as paid
+            </Button>
+          )
+        )}
 
         {mayEdit && (
           <div className="ml-auto flex items-center gap-1">
@@ -258,7 +322,7 @@ function DeliverableRow({ deliverable, mayEdit, onDelete }) {
 
 /* ---------------- one task, priced ---------------- */
 
-function TaskPriceRow({ card, member, mayEdit }) {
+function TaskPriceRow({ card, member, mayEdit, onDelete }) {
   const { dispatch } = useStore()
   const [price, setPrice] = useState(String(card.price ?? 0))
 
@@ -316,6 +380,17 @@ function TaskPriceRow({ card, member, mayEdit }) {
           {money(card.price, 'USD')}
         </p>
       )}
+
+      {mayEdit && (
+        <button
+          onClick={onDelete}
+          className="shrink-0 p-1.5 rounded-md text-ink-3 hover:text-danger hover:bg-danger-soft transition"
+          aria-label={`Delete ${card.title}`}
+          title="Delete this task"
+        >
+          <Icon name="trash" className="w-4 h-4" />
+        </button>
+      )}
     </div>
   )
 }
@@ -334,6 +409,7 @@ export default function DeliverablesView({ board: initialBoard }) {
 
   const mayEdit = canEdit(board, state.user)
   const [adding, setAdding] = useState(false)
+  const [confirm, setConfirm] = useState(null)
 
   const items = useMemo(() => deliverablesOfBoard(state, board.id), [state, board.id])
 
@@ -344,31 +420,36 @@ export default function DeliverablesView({ board: initialBoard }) {
     [state, board.id],
   )
 
-  // Only tasks carry an assignee — manual deliverables aren't tied to anyone
-  // in particular, so they don't factor into this breakdown. "Owed" only
-  // counts done, unpaid work — no paying out for something still in progress.
+  // Tasks and manual deliverables can both carry an assignee, so both count
+  // here. "Owed" is just priced + unpaid — not gated on a task's done state,
+  // since the freelancer decides when someone gets paid, not the app.
   const perPerson = useMemo(() => {
     const rows = board.members.map((m) => {
-      const mine = tasks.filter((c) => isAssignedTo(c, m.id))
-      const owed = mine.filter((c) => c.done && !c.paid)
-      const paidAts = mine.filter((c) => c.paid && c.paidAt).map((c) => c.paidAt)
+      const mine = [...tasks.filter((c) => isAssignedTo(c, m.id)), ...items.filter((d) => isAssignedTo(d, m.id))]
+      const owed = mine.filter((x) => !x.paid && (x.price || 0) > 0)
+      const paidAts = mine.filter((x) => x.paid && x.paidAt).map((x) => x.paidAt)
       return {
         member: m,
-        total: mine.reduce((sum, c) => sum + (c.price || 0), 0),
-        owedTotal: owed.reduce((sum, c) => sum + (c.price || 0), 0),
+        total: mine.reduce((sum, x) => sum + (x.price || 0), 0),
+        owedTotal: owed.reduce((sum, x) => sum + (x.price || 0), 0),
         lastPaidAt: paidAts.length ? paidAts.sort().at(-1) : null,
       }
     })
-    const unassigned = tasks.filter((c) => !c.assigneeId).reduce((sum, c) => sum + (c.price || 0), 0)
+    const unassigned =
+      tasks.filter((c) => !c.assigneeId).reduce((sum, c) => sum + (c.price || 0), 0) +
+      items.filter((d) => !d.assigneeId).reduce((sum, d) => sum + (d.price || 0), 0)
     return { rows, unassigned }
-  }, [board.members, tasks])
+  }, [board.members, tasks, items])
 
   const markPersonPaid = (row) => {
     if (row.owedTotal <= 0) return
-    const ok = window.confirm(
-      `Mark ${money(row.owedTotal, 'USD')} as paid to ${row.member.name}? This only updates the record here — no real payment is sent.`,
-    )
-    if (ok) dispatch({ type: 'payPerson', boardId: board.id, memberId: row.member.id })
+    setConfirm({
+      title: 'Mark as paid?',
+      message: `Mark ${money(row.owedTotal, 'USD')} as paid to ${row.member.name}? This only updates the record here — no real payment is sent.`,
+      confirmLabel: 'Mark as paid',
+      danger: false,
+      onConfirm: () => dispatch({ type: 'payPerson', boardId: board.id, memberId: row.member.id }),
+    })
   }
 
   return (
@@ -415,6 +496,15 @@ export default function DeliverablesView({ board: initialBoard }) {
                 card={card}
                 member={memberFor(board, card.assigneeId)}
                 mayEdit={mayEdit}
+                onDelete={() =>
+                  setConfirm({
+                    title: 'Delete task?',
+                    message: `Delete "${card.title}"? This removes it from the board too.`,
+                    confirmLabel: 'Delete',
+                    danger: true,
+                    onConfirm: () => dispatch({ type: 'deleteCard', id: card.id }),
+                  })
+                }
               />
             ))}
           </div>
@@ -444,12 +534,18 @@ export default function DeliverablesView({ board: initialBoard }) {
               <DeliverableRow
                 key={d.id}
                 deliverable={d}
+                board={board}
+                member={memberFor(board, d.assigneeId)}
                 mayEdit={mayEdit}
-                onDelete={() => {
-                  if (window.confirm(`Delete "${d.title}"?`)) {
-                    dispatch({ type: 'deleteDeliverable', id: d.id })
-                  }
-                }}
+                onDelete={() =>
+                  setConfirm({
+                    title: 'Delete deliverable?',
+                    message: `Delete "${d.title}"? This can't be undone.`,
+                    confirmLabel: 'Delete',
+                    danger: true,
+                    onConfirm: () => dispatch({ type: 'deleteDeliverable', id: d.id }),
+                  })
+                }
               />
             ))}
           </div>
@@ -497,7 +593,9 @@ export default function DeliverablesView({ board: initialBoard }) {
         </section>
       )}
 
-      {adding && <AddDeliverableModal boardId={board.id} onClose={() => setAdding(false)} />}
+      {adding && <AddDeliverableModal board={board} onClose={() => setAdding(false)} />}
+
+      {confirm && <ConfirmModal {...confirm} onClose={() => setConfirm(null)} />}
     </div>
   )
 }

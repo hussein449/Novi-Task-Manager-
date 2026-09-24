@@ -534,6 +534,7 @@ function reducer(state, action) {
             boardId: action.boardId,
             title: action.title,
             description: '',
+            assigneeId: action.assigneeId ?? null,
             price: action.price ?? 0,
             currency: action.currency ?? 'USD',
             status: 'planned',
@@ -554,20 +555,23 @@ function reducer(state, action) {
         ),
       }
 
-    // Pays out every done, priced, unpaid task assigned to one person on one
-    // board — the freelancer recording "I paid them", not a client action.
+    // Pays out every priced, unpaid task and deliverable assigned to one
+    // person on one board — the freelancer recording "I paid them", not a
+    // client action. Not gated on a task's done state: price + unpaid is
+    // enough, the freelancer decides when someone gets paid.
     case 'payPerson': {
       const paidAt = new Date().toISOString()
       return {
         ...state,
         cards: state.cards.map((c) =>
-          c.boardId === action.boardId &&
-          isAssignedTo(c, action.memberId) &&
-          c.done &&
-          (c.price || 0) > 0 &&
-          !c.paid
+          c.boardId === action.boardId && isAssignedTo(c, action.memberId) && (c.price || 0) > 0 && !c.paid
             ? { ...c, paid: true, paidAt }
             : c,
+        ),
+        deliverables: state.deliverables.map((d) =>
+          d.boardId === action.boardId && isAssignedTo(d, action.memberId) && (d.price || 0) > 0 && !d.paid
+            ? { ...d, paid: true, paidAt, approved: true }
+            : d,
         ),
       }
     }
@@ -780,6 +784,7 @@ async function persist(action, before, after) {
         title: action.title,
         price: action.price ?? 0,
         currency: action.currency ?? 'USD',
+        assigneeId: action.assigneeId ?? null,
         sortOrder: list.length - 1,
         createdBy: user.email,
       })
@@ -789,17 +794,17 @@ async function persist(action, before, after) {
       return api.updateDeliverable(action.id, action.patch)
 
     case 'payPerson': {
-      const ids = before.cards
+      const cardIds = before.cards
         .filter(
-          (c) =>
-            c.boardId === action.boardId &&
-            isAssignedTo(c, action.memberId) &&
-            c.done &&
-            (c.price || 0) > 0 &&
-            !c.paid,
+          (c) => c.boardId === action.boardId && isAssignedTo(c, action.memberId) && (c.price || 0) > 0 && !c.paid,
         )
         .map((c) => c.id)
-      return api.payPerson(ids)
+      const deliverableIds = before.deliverables
+        .filter(
+          (d) => d.boardId === action.boardId && isAssignedTo(d, action.memberId) && (d.price || 0) > 0 && !d.paid,
+        )
+        .map((d) => d.id)
+      return Promise.all([api.payPerson(cardIds), api.payDeliverables(deliverableIds)])
     }
 
     case 'deleteDeliverable':
